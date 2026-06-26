@@ -1,0 +1,6 @@
+# Claude Code local settings/state — เครื่องใครเครื่องมัน ไม่ต้อง commit
+.claude/
+
+# OS junk files
+Thumbs.db
+.DS_Store

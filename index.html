@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Order Rush</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0; padding: 0; background: #0f0c29;
+    display: flex; justify-content: center; align-items: center;
+    width: 100%; height: 100%; overflow: hidden; font-family: sans-serif;
+  }
+  /* เต็มจอเสมอทุกอุปกรณ์: ปิดการ auto-scale ของ Phaser ทั้งหมด แล้วคำนวณ/บังคับขนาด+ตำแหน่ง
+     canvas เองด้วย JS (fitGameContainer) ตรงๆ แม่นยำกว่าปล่อยให้ Scale Manager คำนวณเอง
+     ซึ่งมีปัญหาเรื่อง timing บน iOS Safari (ขอบดำเกิน/ล้นจอ) */
+  #game-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; }
+  #game-container canvas { position: absolute; top: 0; left: 0; touch-action: none; }
+
+  /* คำเตือนหมุนจอ: เกมนี้ออกแบบมาสำหรับแนวตั้งเท่านั้น ถ้าจอกว้างกว่าสูง (แนวนอน) ให้โชว์ทับเกม */
+  #rotate-warning {
+    display: none;
+    position: fixed; inset: 0; z-index: 999;
+    background: #0f0c29; color: #fff;
+    flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Kanit', sans-serif; text-align: center; gap: 12px;
+  }
+  @media (orientation: landscape) {
+    #rotate-warning { display: flex; }
+  }
+</style>
+</head>
+<body>
+<div id="game-container"></div>
+<div id="rotate-warning">
+  <div style="font-size: 48px;">📱↻</div>
+  <div style="font-size: 18px;">กรุณาหมุนจอกลับเป็นแนวตั้ง<br>เพื่อเล่นเกม Order Rush</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+<script>
+
+// ===================== ค่าคงที่ของเกม (Game Constants) =====================
+const W = 390, H = 844;
+const FONT = 'Kanit, sans-serif'; // ฟอนต์หลักของเกม รองรับภาษาไทย
+// ล็อกความยากไว้ที่ Easy ทั้งเกมชั่วคราว (รอเพิ่มระบบคอมโบก่อนค่อยปลดล็อกความยาก Medium/Hard)
+const EASY_LOCK_MODE = true;
+
+// ระบบคอมโบ: ส่งถูกต่อกันครบทุกๆ 3 ครั้ง (x3, x6, x9, ...) ปลดล็อก/เติมคิวออเดอร์สูงสุดเป็น 5
+// แล้วสุ่มยิงออเดอร์เพิ่ม 3-5 ใบทันที (ดูใน trySendBox/spawnOrder)
+const NORMAL_MAX_ORDERS = 2;
+const COMBO_MAX_ORDERS = 5;
+const COMBO_THRESHOLD = 3;
+
+// ----- ค่าตั้งสำหรับช่วงทดสอบ (ปรับกลับค่าจริงได้ตรงนี้จุดเดียว) -----
+const TIME_LIMIT_SECONDS = 60; // ช่วงทดสอบ: 1 นาที (ของจริง: 180 = 3 นาที)
+const ORDER_BASE_SCORE = 1;    // ช่วงทดสอบ: 1 แต้ม/ออเดอร์ (ของจริง: 100)
+
+// คีย์ localStorage เก็บคะแนนสูงสุด (v0.1.1: เพิ่มระบบ high score ฝั่ง client ล้วนๆ ไม่มีระบบออนไลน์)
+const HIGH_SCORE_KEY = 'orderRushHighScore';
+
+// v0.1.2: Order Board ใหม่ — มีการ์ดหลัก (ออเดอร์ที่กำลังแพ็ก) ขนาดคงที่ใหญ่ 1 ใบ +
+// คิวถัดไปขนาดเล็กกว่าสูงสุด 3 ใบ ไม่มีการไล่ขนาดลง (ULTRA) อีกต่อไป เพื่อไม่ให้ไอคอน/ตัวอักษร
+// เล็กเกินอ่านยากไม่ว่าจะมีออเดอร์พร้อมกันกี่ใบก็ตาม (ดู renderOrders/renderOrderCard)
+const SELECTED_ORDER_CARD_CFG = { cols: 4, cardW: 250, cardH: 78, chipW: 52, chipH: 48, chipGap: 8, pad: 10, iconSize: 13, fontSize: '13px' };
+const QUEUE_CARD_CFG = { cols: 2, cardW: 92, cardH: 54, chipW: 34, chipH: 30, chipGap: 4, pad: 6, iconSize: 8, fontSize: '10px' };
+
+// ตำแหน่ง y เริ่มต้นของเส้นแบ่งโซนหลังพื้นที่ออเดอร์ (ตามดีไซน์เดิม) ใช้เป็นจุดอ้างอิงคำนวณว่า
+// พื้นที่ออเดอร์ "ล้น" ไปแค่ไหน แล้วต้องดันกล่องแพ็ก/ปุ่มส่ง/ของในคลังลงมาเพิ่มเท่าไหร่ (relayoutBelowOrders)
+const DEFAULT_DIVIDER1_Y = H * 0.3;
+// ดันลงมาได้ไม่เกินนี้ (คำนวณจากพื้นที่ว่างจริงด้านล่างของในคลัง ก่อนที่ปุ่มแถวที่ 2 จะตกขอบจอ 844px)
+// ถ้าพื้นที่ออเดอร์ต้องการมากกว่านี้ ให้ลดขนาดการ์ดลงอีกขั้น (ULTRA) แทนการดันต่อ ป้องกันของในคลังหลุดจอ
+const ORDERS_MAX_DELTA = 36;
+
+// ขนาด "ป้าย" (pill) แสดงสินค้าในกล่องแพ็ก: 2 ป้าย/แถว พอดีกับความกว้างกล่อง 160px
+// (8 pad + 68 + 8 gap + 68 + 8 pad = 160) สูงสุด 3 แถว พอดีกับความสูงกล่อง 110px
+const PILL_COLS = 2;
+const PILL_W = 68;
+const PILL_H = 26;
+const PILL_GAP_X = 8;
+const PILL_GAP_Y = 8;
+const BOX_PAD = 8;
+
+// ธีมสี โทนคลังสินค้ายามค่ำคืน (กลางคืน + แสงไฟอบอุ่น) ให้ดูพรีเมียมขึ้น
+const THEME = {
+  bgTop: 0x16213e,
+  bgBottom: 0x0f0c29,
+  panel: 0x232a52,
+  panelBorder: 0x4d5b9e,
+  gold: 0xffce54,
+  goldText: '#ffce54',
+  danger: 0xe94560,
+  success: 0x3ddc97
+};
+
+// สเปกสินค้า 5 ชนิด: สี, รูปทรง, ขนาด
+const PRODUCTS = {
+  A: { name: 'เสื้อยืด', color: 0xFF4444, shape: 'rect',   emoji: '👕' },
+  B: { name: 'หมวกแก๊ป', color: 0x4444FF, shape: 'halfcircle', emoji: '🧢' },
+  C: { name: 'แก้วน้ำ', color: 0xFFCC00, shape: 'cylinder', emoji: '☕' },
+  D: { name: 'หนังสือ', color: 0x44BB44, shape: 'square',  emoji: '📗' },
+  E: { name: 'ตุ๊กตาหมี', color: 0xCCAA88, shape: 'circle', emoji: '🐻' }
+};
+const PRODUCT_KEYS = ['A', 'B', 'C', 'D', 'E'];
+
+// ออเดอร์ 10 แบบ ไล่ระดับความยาก (ใช้เป็น pool สุ่มตามเฟส)
+const ORDER_POOL = {
+  easy: [ { A: 1 }, { C: 1 }, { D: 1 } ],
+  medium: [ { A: 1, B: 1 }, { E: 1, C: 1 }, { D: 3 } ],
+  hard: [ { B: 2, C: 2 }, { A: 1, B: 1, D: 1 }, { E: 2 }, { A: 1, B: 1, C: 1, D: 1, E: 1 } ]
+};
+
+// ===================== Scene หลัก: GameScene =====================
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  create() {
+    // โซน 1: Pressure zone (บน 30%) แสดงเวลา/เงิน/ออเดอร์
+    // โซน 2: Action zone (กลาง 40%) กล่องแพ็ก + ปุ่มส่ง
+    // โซน 3: Inventory zone (ล่าง 30%) ปุ่มสินค้า
+    this.cameras.main.setBackgroundColor('#0f0c29');
+    this.drawBackground();
+
+    // ----- สถานะเกม -----
+    this.score = 0;
+    this.timeLeft = TIME_LIMIT_SECONDS; // ช่วงทดสอบ: 1 นาที (ปรับกลับเป็น 180 ได้ที่ค่าคงที่ด้านบน)
+    this.activeOrders = []; // ออเดอร์ที่กำลังรอ (object: {id, items, patience, maxPatience, container})
+    this.currentBox = {};   // ของที่แพ็กอยู่ในกล่องปัจจุบัน { A: n, B: n, ... }
+    this.selectedOrderId = null; // ออเดอร์ที่กำลังเลือกแพ็กอยู่
+    this.orderIdCounter = 0;
+    this.maxConcurrentOrders = NORMAL_MAX_ORDERS; // ปลดล็อกเป็น COMBO_MAX_ORDERS ทุกครั้งที่คอมโบครบ x3, x6, x9, ...
+    this.combo = 0; // จำนวนครั้งที่ส่งถูกต่อกัน รีเซ็ตเป็น 0 ตอนผิด/หมดเวลา
+    this.maxCombo = 0; // คอมโบสูงสุดที่ทำได้ทั้งเกม ใช้บวกโบนัสตอนจบเกม
+    this.ordersSent = 0;    // จำนวนออเดอร์ที่ส่งสำเร็จทั้งเกม (โชว์ในหน้า Game Over)
+    this.ordersExpired = 0; // จำนวนออเดอร์ที่หมดเวลาทั้งเกม (โชว์ในหน้า Game Over)
+    this.gameOver = false;
+    this.gameStarted = false; // ต้องกดเริ่มเกมที่ Start Screen ก่อน ไม่งั้นนับเวลาทันทีที่โหลดหน้า
+
+    this.setupAudio();
+    this.buildUI();
+    // ซ่อน UI เกมไว้ก่อนจนกว่าจะกดเริ่ม (showStartScreen จะคุมการแสดง/ซ่อนเอง)
+    this.showStartScreen();
+  }
+
+  // ----------------- Start Screen -----------------
+  // โชว์ก่อนเริ่มเกมเสมอ: ชื่อเกม + วิธีเล่นย่อ + ปุ่มเริ่ม ป้องกันนับเวลาทิ้งก่อนผู้เล่นพร้อม
+  showStartScreen() {
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(300);
+    const panel = this.add.rectangle(W / 2, H / 2, 320, 420, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(301);
+
+    const title = this.add.text(W / 2, H / 2 - 170, 'Order Rush', { fontSize: '32px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT })
+      .setOrigin(0.5).setDepth(302).setShadow(0, 2, '#000000', 4, false, true);
+
+    const bullets = [
+      '• แตะสินค้าด้านล่างเพื่อแพ็กลงกล่อง',
+      '• แพ็กให้ตรงกับออเดอร์ที่เลือกไว้',
+      '• กดปุ่ม "ปิด & ส่ง!" ตอนของครบ',
+      '• ส่งถูกต่อกันสร้างคอมโบ ยิ่งสูงยิ่งได้โบนัส'
+    ];
+    const bulletTexts = bullets.map((line, i) =>
+      this.add.text(W / 2, H / 2 - 100 + i * 36, line, { fontSize: '14px', color: '#ffffff', fontFamily: FONT })
+        .setOrigin(0.5).setDepth(302)
+    );
+
+    const startBtn = this.add.rectangle(W / 2, H / 2 + 150, 220, 56, THEME.success).setStrokeStyle(3, 0x2bb87e).setInteractive({ useHandCursor: true }).setDepth(302);
+    const startBtnText = this.add.text(W / 2, H / 2 + 150, 'เริ่มเกม', { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(302);
+
+    const startScreenObjects = [overlay, panel, title, startBtn, startBtnText, ...bulletTexts];
+    startBtn.on('pointerdown', () => {
+      startScreenObjects.forEach(o => o.destroy());
+      this.startGame();
+    });
+  }
+
+  // เริ่มเกมจริง: ตั้งออเดอร์แรก + เปิดตัวจับเวลาทั้งหมด (เรียกหลังกด "เริ่มเกม" เท่านั้น)
+  startGame() {
+    this.gameStarted = true;
+    this.spawnOrder(); // ออเดอร์แรกเริ่มทันที
+
+    // จับเวลาหลักของเกม (นับทุก 1 วินาที)
+    this.secondTimer = this.time.addEvent({ delay: 1000, callback: this.tickSecond, callbackScope: this, loop: true });
+
+    // จับเวลาความอดทนของออเดอร์ (อัปเดตทุก 100ms ให้ลื่น)
+    this.patienceTimer = this.time.addEvent({ delay: 100, callback: this.tickPatience, callbackScope: this, loop: true });
+
+    // สุ่มออเดอร์ใหม่เรื่อยๆ ถ้ายังไม่เกินจำนวนคิวสูงสุด (เฟส Final Rush จะสุ่มถี่ขึ้น)
+    this.spawnTimer = this.time.addEvent({ delay: 2500, callback: this.maybeSpawnOrder, callbackScope: this, loop: true });
+  }
+
+  // วาดพื้นหลังโทนคลังสินค้ายามค่ำคืน: gradient + จุดไฟเรืองแสงเบาๆ ให้มีมิติ (ไม่ใช้รูปภาพ)
+  drawBackground() {
+    const g = this.add.graphics().setDepth(-10);
+    g.fillGradientStyle(THEME.bgTop, THEME.bgTop, THEME.bgBottom, THEME.bgBottom, 1);
+    g.fillRect(0, 0, W, H);
+
+    // แสงไฟอุ่นๆ ลอยตามมุมจอ ให้ดูมีมิติแบบคลังสินค้ายามดึก
+    [{ x: 40, y: 100, r: 120, c: 0x4d5b9e }, { x: W - 30, y: H * 0.5, r: 140, c: 0x6b4ea8 }, { x: 60, y: H - 120, r: 110, c: 0xffce54 }]
+      .forEach(spot => {
+        const glow = this.add.circle(spot.x, spot.y, spot.r, spot.c, 0.06).setDepth(-9);
+      });
+  }
+
+  // ----------------- ระบบเสียง (Web Audio API ล้วนๆ ไม่ใช้ไฟล์เสียง) -----------------
+  setupAudio() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    this.audioCtx = AudioCtx ? new AudioCtx() : null;
+
+    // มือถือ (iOS/Android) บล็อก AudioContext ไว้เป็น "suspended" จนกว่าจะมีการแตะหน้าจอ
+    // ถ้าไม่ resume ตรงนี้ เสียงทั้งหมดจะเงียบบนมือถือ ทั้งที่บน Desktop ดังปกติ
+    if (this.audioCtx) {
+      const unlock = () => { if (this.audioCtx.state === 'suspended') this.audioCtx.resume(); };
+      this.input.once('pointerdown', unlock);
+    }
+  }
+
+  // เล่นเสียง beep สั้นๆ โดยสร้างคลื่นเสียงเอง (oscillator) แทนการโหลดไฟล์ mp3/wav
+  playTone(freq, duration, type = 'sine', volume = 0.15) {
+    if (!this.audioCtx) return;
+    const ctx = this.audioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.value = volume;
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  playTapSound() { this.playTone(880, 0.08, 'square'); }          // หยิบของ: เสียง "ติ๊ด"
+  playCloseSound() { this.playTone(220, 0.12, 'sawtooth'); }      // ปิดกล่อง: เสียง "แคร่ก"
+  playSuccessSound() {                                            // ส่งสำเร็จ: เสียงเหรียญ (สองโน้ตไล่ขึ้น)
+    this.playTone(660, 0.1, 'triangle', 0.18);
+    this.time.delayedCall(90, () => this.playTone(990, 0.15, 'triangle', 0.18));
+  }
+  playBuzzerSound() { this.playTone(140, 0.35, 'sawtooth', 0.2); } // หมดเวลาออเดอร์: เสียง buzzer
+
+  // ----------------- สร้าง UI ทั้งหมด -----------------
+  buildUI() {
+    // ---- Zone 1: Pressure (timer + score + orders) ----
+    const initM = Math.floor(TIME_LIMIT_SECONDS / 60).toString().padStart(2, '0');
+    const initS = (TIME_LIMIT_SECONDS % 60).toString().padStart(2, '0');
+    this.timerText = this.add.text(20, 20, `⏱ ${initM}:${initS}`, { fontSize: '24px', color: '#ffffff', fontStyle: 'bold', fontFamily: FONT })
+      .setShadow(0, 2, '#000000', 4, false, true);
+    this.scoreText = this.add.text(W - 140, 20, '💎 0', { fontSize: '24px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT })
+      .setShadow(0, 2, '#000000', 4, false, true);
+
+    // v0.1.2: ย้าย container มาที่ (0,0) เพราะ Order Board ใหม่กำหนดตำแหน่งการ์ด/หัวข้อเป็นพิกัด
+    // สัมบูรณ์ตรงๆ ในตัวเอง (ดู renderOrders) ไม่ต้องพึ่ง offset คงที่ 70 แบบเดิมอีกต่อไป
+    this.ordersContainer = this.add.container(0, 0); // คอนเทนเนอร์เก็บ Order Board ทั้งหมด (หัวข้อ + การ์ดหลัก + คิว)
+
+    // ทุกอย่างตั้งแต่เส้นแบ่งโซนแรกลงไป (กล่องแพ็ก, ปุ่มส่ง, เส้นแบ่งโซนสอง, ของในคลัง) อยู่ใน
+    // container เดียวนี้ เพื่อให้ relayoutBelowOrders() ดันลงมาทั้งชุดได้ทีเดียว ตอนพื้นที่ออเดอร์
+    // ขยายเกินปกติ (เช่น คอมโบเซิร์จมีหลายการ์ด/ของหลายชนิด) กันไม่ให้การ์ดไปทับกล่องแพ็กแบบที่เจอ
+    this.belowOrdersContainer = this.add.container(0, 0);
+
+    // เส้นแบ่งโซน (ใช้สีอ่อนแบบโปร่งแสง ให้กลืนกับธีมพื้นหลังมากขึ้น)
+    const divider1 = this.add.rectangle(0, DEFAULT_DIVIDER1_Y, W, 2, THEME.panelBorder, 0.4);
+    const divider2 = this.add.rectangle(0, H * 0.7, W, 2, THEME.panelBorder, 0.4);
+
+    // ---- Zone 2: Action (กล่องแพ็ก + ปุ่มส่ง) ----
+    // รวมองค์ประกอบของ "กล่อง" ไว้ใน container เดียว เพื่อให้ slide in/out ได้ทั้งชุดตอนส่งของ
+    const boxY = H * 0.45;
+    this.boxY = boxY;
+    this.boxContainer = this.add.container(W / 2, boxY);
+    // กล่องสีน้ำตาลทั้งกล่อง = ปุ่มยกเลิก/ล้างของที่แพ็กไว้ (แทนปุ่ม "ล้าง" แยก)
+    this.boxGraphic = this.add.rectangle(0, 0, 160, 110, 0x8b5a2b).setStrokeStyle(4, 0x5c3a1a).setInteractive({ useHandCursor: true });
+    this.boxGraphic.on('pointerdown', () => this.clearBox());
+    this.boxLabel = this.add.text(0, -70, '📦 กล่องแพ็ก (แตะเพื่อยกเลิก)', { fontSize: '13px', color: '#ffffff', fontFamily: FONT }).setOrigin(0.5);
+    this.boxItemsContainer = this.add.container(0, 0); // เก็บไอคอน shape ของของในกล่อง (แทน emoji text)
+    this.boxEmptyText = this.add.text(0, 0, '(ว่าง)', { fontSize: '16px', color: '#fff', fontFamily: FONT }).setOrigin(0.5);
+
+    this.boxContainer.add([this.boxGraphic, this.boxLabel, this.boxItemsContainer, this.boxEmptyText]);
+
+    this.sendButton = this.add.rectangle(W / 2, H * 0.62, 220, 56, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setInteractive({ useHandCursor: true });
+    this.sendButtonText = this.add.text(W / 2, H * 0.62, 'ปิด & ส่ง! 🚀', { fontSize: '20px', color: '#9aa0c8', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5);
+    this.sendButton.on('pointerdown', () => this.trySendBox());
+
+    // ---- Zone 3: Inventory (ปุ่มสินค้า Tap to Pack) ----
+    const invY1 = H * 0.78, invY2 = H * 0.90;
+    const positions = [
+      { key: 'A', x: W * 0.2, y: invY1 }, { key: 'B', x: W * 0.5, y: invY1 }, { key: 'C', x: W * 0.8, y: invY1 },
+      { key: 'D', x: W * 0.35, y: invY2 }, { key: 'E', x: W * 0.65, y: invY2 }
+    ];
+    this.productButtons = {};
+    positions.forEach(p => {
+      const btn = this.createProductButton(p.x, p.y, p.key);
+      this.productButtons[p.key] = btn;
+    });
+
+    // รวมทุกอย่างเข้า belowOrdersContainer (ลำดับการ add ไม่กระทบตำแหน่ง เพราะแต่ละชิ้นมี x/y สัมบูรณ์ของตัวเองอยู่แล้ว)
+    this.belowOrdersContainer.add([
+      divider1, divider2, this.boxContainer, this.sendButton, this.sendButtonText,
+      ...Object.values(this.productButtons)
+    ]);
+  }
+
+  // สร้างปุ่มสินค้าหนึ่งชิ้น (วาด shape ด้วย Graphics ไม่ใช้รูปภาพ)
+  // ใช้ Zone จับคลิกแทนการตั้ง custom hitArea บน Container เอง เพราะ Zone จับคลิกได้แม่นยำกว่า
+  // (custom Rectangle hitArea บน Container บางครั้งพลาดคลิกบน Desktop/บางเบราว์เซอร์)
+  createProductButton(x, y, key) {
+    const container = this.add.container(x, y);
+    const bg = this.add.circle(0, 0, 38, THEME.panel).setStrokeStyle(2, THEME.panelBorder);
+    const g = this.add.graphics();
+    this.drawProductShape(g, key, 0, 0, 26);
+    const hitZone = this.add.zone(0, 0, 84, 84).setInteractive({ useHandCursor: true });
+    container.add([bg, g, hitZone]);
+
+    hitZone.on('pointerdown', () => this.packItem(key));
+    // เอฟเฟกต์กดเล็กน้อยตอนแตะ ช่วยให้ผู้เล่นมั่นใจว่าคลิกติดแล้ว
+    hitZone.on('pointerdown', () => {
+      this.tweens.add({ targets: container, scale: 0.88, duration: 60, yoyo: true });
+    });
+    return container;
+  }
+
+  // วาดรูปทรงสินค้าตามสเปก (rect, halfcircle, cylinder, square, circle)
+  drawProductShape(g, key, x, y, size) {
+    const product = PRODUCTS[key];
+    g.clear();
+    g.fillStyle(product.color, 1);
+    switch (product.shape) {
+      case 'rect': // เสื้อยืด: สี่เหลี่ยมผืนผ้า
+        // รัศมีมุมต้อง "ขยับตามขนาด" ไม่ใช่ค่าคงที่ ไม่งั้นพอไอคอนเล็กลง (ชิป/ป้ายขนาดเล็ก) รัศมีจะใหญ่
+        // กว่าตัวสี่เหลี่ยมเองจนรูปทรงเพี้ยน/แตกไม่เป็นรูปร่าง — คูณด้วย size จึงเล็กลงตามกันเสมอ
+        g.fillRoundedRect(x - size * 0.7, y - size * 0.5, size * 1.4, size, size * 0.3);
+        break;
+      case 'halfcircle': // หมวกแก๊ป: ครึ่งวงกลม
+        // ครึ่งวงกลม (half-disk) สูง = รัศมีเท่านั้น ไม่ใช่เส้นผ่านศูนย์กลาง จึงต้องเลื่อนจุดศูนย์กลาง
+        // ขึ้นไป size*0.4 เพื่อให้ "กึ่งกลางจริงของรูปทรง" ตรงกับ y เดียวกับไอคอนอื่นๆ (rect/circle/square)
+        // ไม่งั้นรูปนี้จะดูต่ำ/ดรอปลงกว่าไอคอนข้างๆ เพราะฐานแบนอยู่ตรง y พอดี แล้วโป่งลงไปด้านล่างอีกชั้น
+        g.beginPath();
+        g.arc(x, y - size * 0.4, size * 0.8, Phaser.Math.DegToRad(180), Phaser.Math.DegToRad(360), false);
+        g.closePath();
+        g.fillPath();
+        break;
+      case 'cylinder': // แก้วน้ำ: กระบอกเล็ก
+        // เดิมรัศมีมุมคงที่ที่ 6px ไม่ว่าไอคอนจะเล็กแค่ไหน — ที่ขนาดเล็ก (ชิป/ป้าย iconSize 7-9px)
+        // ความกว้างจริงแค่ ~6-7px รัศมี 6px เลยใหญ่กว่าตัวรูปทรงเอง ทำให้มุมเพี้ยนดูเหมือนไอคอนแตก
+        // แก้โดยให้รัศมีเป็นสัดส่วนของ size เสมอ (0.3×size < ครึ่งความกว้าง 0.4×size เสมอ กันรูปร่างพัง)
+        g.fillRoundedRect(x - size * 0.4, y - size * 0.6, size * 0.8, size * 1.2, size * 0.3);
+        break;
+      case 'square': // หนังสือ: สี่เหลี่ยมจัตุรัส
+        g.fillRect(x - size * 0.55, y - size * 0.55, size * 1.1, size * 1.1);
+        break;
+      case 'circle': // ตุ๊กตาหมี: วงกลม (ใหญ่สุด)
+        g.fillCircle(x, y, size * 0.9);
+        break;
+    }
+  }
+
+  // ชิปแสดงสินค้า 1 ชนิดในการ์ดออเดอร์: กล่องพื้นหลังแยกชัด + ไอคอนอยู่บน + จำนวนอยู่ใต้
+  // ใช้แทนการลอยไอคอน/ตัวเลขแบบเดิม ที่พอมีหลายชนิด+จำนวนเยอะในการ์ดเดียวจะดูสับสนว่าเลขไหนคู่กับไอคอนไหน
+  // cfg มาจาก SELECTED_ORDER_CARD_CFG (การ์ดหลัก) หรือ QUEUE_CARD_CFG (การ์ดคิว) ดู renderOrderCard
+  createOrderItemChip(card, key, count, x, y, cfg) {
+    const chipBg = this.add.rectangle(x, y, cfg.chipW, cfg.chipH, THEME.bgBottom, 0.6).setStrokeStyle(1, THEME.panelBorder, 0.8);
+    const g = this.add.graphics();
+    this.drawProductShape(g, key, x, y - cfg.chipH * 0.18, cfg.iconSize);
+    const t = this.add.text(x, y + cfg.chipH * 0.32, 'x' + count, { fontSize: cfg.fontSize, color: '#ffffff', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5);
+    card.add([chipBg, g, t]);
+  }
+
+  // "ป้าย" (pill) แสดงสินค้าในกล่องแพ็ก: ทรงโค้งมน สีอุ่นเข้าธีมกล่องไม้ ไอคอน+จำนวนเรียงแนวนอน
+  // ตั้งใจให้หน้าตาต่างจากชิปในการ์ดออเดอร์ (ที่เป็นกล่องเหลี่ยมสีกรมท่า ไอคอนบน-เลขล่าง)
+  // เพื่อให้ผู้เล่นแยกแยะด้วยตาได้ทันทีว่านี่คือ "ของที่แพ็กแล้ว" ไม่ใช่ "สิ่งที่ต้องส่ง"
+  createBoxItemPill(container, key, count, x, y, onTap) {
+    const g = this.add.graphics();
+    g.fillStyle(0xead9b8, 1); // สีครีมอุ่นๆ ตัดกับกล่องไม้สีน้ำตาล
+    g.lineStyle(2, 0x5c3a1a, 1);
+    g.fillRoundedRect(x - PILL_W / 2, y - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2);
+    g.strokeRoundedRect(x - PILL_W / 2, y - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2);
+
+    const iconG = this.add.graphics();
+    this.drawProductShape(iconG, key, x - PILL_W / 2 + 16, y, 9);
+    const t = this.add.text(x + 8, y, 'x' + count, { fontSize: '13px', color: '#3a2a1a', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0, 0.5);
+    container.add([g, iconG, t]);
+
+    if (onTap) {
+      const hitZone = this.add.zone(x, y, PILL_W, PILL_H).setInteractive({ useHandCursor: true });
+      hitZone.on('pointerdown', onTap);
+      container.add(hitZone);
+    }
+  }
+
+  // ----------------- Visual Feedback Helpers -----------------
+  // ตัวเลขลอยขึ้นแล้วจางหาย ใช้ทั้งแสดง +1 ตอนหยิบของ และ +/-คะแนน
+  spawnFloatingText(x, y, text, color) {
+    const t = this.add.text(x, y, text, { fontSize: '20px', color, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(100);
+    this.tweens.add({
+      targets: t,
+      y: y - 50,
+      alpha: 0,
+      duration: 700,
+      ease: 'Cubic.Out',
+      onComplete: () => t.destroy()
+    });
+  }
+
+  // เขย่า object ซ้ายขวาเบาๆ ใช้ตอนปิดกล่อง/หมดเวลาออเดอร์
+  shakeObject(obj) {
+    const originalX = obj.x;
+    this.tweens.add({
+      targets: obj,
+      x: originalX + 6,
+      duration: 50,
+      yoyo: true,
+      repeat: 5,
+      onComplete: () => { obj.x = originalX; }
+    });
+  }
+
+  // เอฟเฟกต์ sparkle ตอนส่งของสำเร็จ: จุดเล็กๆ กระจายออกแล้วจางหาย
+  spawnSparkle(x, y) {
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const star = this.add.star(x, y, 5, 4, 8, 0xffd700).setDepth(100);
+      this.tweens.add({
+        targets: star,
+        x: x + Math.cos(angle) * 50,
+        y: y + Math.sin(angle) * 50,
+        alpha: 0,
+        scale: 0.3,
+        duration: 500,
+        ease: 'Cubic.Out',
+        onComplete: () => star.destroy()
+      });
+    }
+  }
+
+  // Popup คอมโบ "xN" ขึ้นกลางจอ ตัวใหญ่ เด้งเข้าแล้วจางหายขึ้นด้านบน (เรียกทุกครั้งที่ส่งออเดอร์สำเร็จ)
+  spawnComboPopup(combo) {
+    const color = combo >= COMBO_THRESHOLD ? THEME.goldText : '#ffffff';
+    const t = this.add.text(W / 2, H / 2, 'x' + combo, {
+      fontSize: '64px', color, fontStyle: 'bold', fontFamily: FONT
+    }).setOrigin(0.5).setDepth(150).setScale(0.3).setShadow(0, 3, '#000000', 6, false, true);
+
+    this.tweens.add({
+      targets: t,
+      scale: 1,
+      duration: 180,
+      ease: 'Back.Out'
+    });
+    this.tweens.add({
+      targets: t,
+      y: H / 2 - 60,
+      alpha: 0,
+      delay: 350,
+      duration: 450,
+      ease: 'Cubic.Out',
+      onComplete: () => t.destroy()
+    });
+  }
+
+  // ----------------- ระบบออเดอร์ -----------------
+  // กำหนดเฟสปัจจุบันตามเวลาที่เหลือ (Phase 2 จะมาเติม logic ปรับความยาก/ความเร็วเพิ่ม)
+  getCurrentPhase() {
+    const elapsed = TIME_LIMIT_SECONDS - this.timeLeft;
+    if (elapsed < 60) return 'warmup';   // นาทีที่ 1
+    if (elapsed < 120) return 'midrush'; // นาทีที่ 2
+    return 'finalrush';                  // นาทีที่ 3
+  }
+
+  maybeSpawnOrder() {
+    if (!this.gameOver && this.activeOrders.length < this.maxConcurrentOrders) {
+      this.spawnOrder();
+    }
+  }
+
+  // สุ่มออเดอร์ใหม่ตามเฟสปัจจุบัน แล้วสร้างการ์ดแสดงผล
+  // EASY_LOCK_MODE: ล็อกความยากไว้ที่ Easy ทั้งเกมชั่วคราว (รอเพิ่มระบบคอมโบก่อนค่อยปลดล็อก
+  // ความยาก Medium/Hard ตามเฟส) ปิดสวิตช์นี้ (false) เพื่อกลับไปใช้ระบบไล่ระดับความยากเดิม
+  spawnOrder() {
+    const phase = this.getCurrentPhase();
+    let pool, maxPatience;
+    if (EASY_LOCK_MODE) {
+      pool = ORDER_POOL.easy;
+      // คิวพร้อมกันปกติ 2 ออเดอร์ แต่ถ้าคอมโบแตะ x3+ จะปลดล็อกเป็น 5 (อย่าทับค่าที่คอมโบตั้งไว้)
+      this.maxConcurrentOrders = this.combo >= COMBO_THRESHOLD ? COMBO_MAX_ORDERS : NORMAL_MAX_ORDERS;
+      maxPatience = 22;
+    } else if (phase === 'warmup') { pool = ORDER_POOL.easy; this.maxConcurrentOrders = 2; maxPatience = 22; }
+    else if (phase === 'midrush') { pool = ORDER_POOL.easy.concat(ORDER_POOL.medium); this.maxConcurrentOrders = 3; maxPatience = 22; }
+    else { pool = ORDER_POOL.easy.concat(ORDER_POOL.medium, ORDER_POOL.hard); this.maxConcurrentOrders = 3; maxPatience = 16; }
+
+    if (this.activeOrders.length >= this.maxConcurrentOrders) return;
+
+    const items = Phaser.Utils.Array.GetRandom(pool);
+    const order = {
+      id: this.orderIdCounter++,
+      items: Object.assign({}, items),
+      maxPatience, // วินาที (เร็วขึ้นในนาทีสุดท้าย เมื่อปลดล็อก EASY_LOCK_MODE)
+      patience: 0
+    };
+    order.patience = order.maxPatience;
+    this.activeOrders.push(order);
+    this.renderOrders();
+  }
+
+  // สุ่มเนื้อออเดอร์สำหรับตอนคอมโบเซิร์จ: ประเภทสินค้า 1-3 ชนิด และจำนวน 1-3 ต่อชนิด
+  // (v0.1.1: ลดช่วงสุ่มลงจาก 1-5/1-5 เดิม เพื่อให้ surge ไม่หนักเกินไปสำหรับ playtest 60 วินาที)
+  generateRandomOrderItems() {
+    const typeCount = Phaser.Math.Between(1, 3);
+    const keys = Phaser.Utils.Array.Shuffle(PRODUCT_KEYS.slice()).slice(0, typeCount);
+    const items = {};
+    keys.forEach(k => { items[k] = Phaser.Math.Between(1, 3); });
+    return items;
+  }
+
+  // สร้างออเดอร์สุ่มความยาก "หนัก" 1 ใบ ใช้เฉพาะตอนคอมโบเซิร์จ (ทุกๆ x3) ใน trySendBox
+  // ให้เวลาความอดทนมากขึ้นตามจำนวนของที่ต้องแพ็ก ไม่งั้นออเดอร์ที่สุ่มได้ของเยอะจะแพ็กไม่ทันแน่นอน
+  spawnComboOrder() {
+    if (this.activeOrders.length >= this.maxConcurrentOrders) return;
+    const items = this.generateRandomOrderItems();
+    const totalQty = Object.values(items).reduce((sum, n) => sum + n, 0);
+    const order = {
+      id: this.orderIdCounter++,
+      items,
+      maxPatience: Math.min(45, 18 + totalQty * 2), // ของเยอะ = เวลามากขึ้น แต่ไม่เกิน 45 วิ
+      patience: 0
+    };
+    order.patience = order.maxPatience;
+    this.activeOrders.push(order);
+    this.renderOrders();
+  }
+
+  // วาดการ์ดออเดอร์ 1 ใบที่ตำแหน่ง (x, y) แบบ "กึ่งกลาง" (origin 0.5 ทั้งกล่อง/ชิป/บาร์)
+  // ใช้ทั้งการ์ดหลัก (isMain = true, SELECTED_ORDER_CARD_CFG) และการ์ดคิว (QUEUE_CARD_CFG)
+  renderOrderCard(order, cfg, x, y, isMain) {
+    const container = this.add.container(x, y);
+    const itemEntries = Object.entries(order.items);
+
+    // ไฮไลต์การ์ดหลัก: เรืองแสง (glow) pulse เบาๆ ให้เด่นกว่าแค่ขอบสีทอง
+    if (isMain) {
+      const glow = this.add.rectangle(0, 0, cfg.cardW + 10, cfg.cardH + 10, THEME.gold, 0.25);
+      container.add(glow);
+      this.activeGlows.push(glow);
+      this.tweens.add({ targets: glow, alpha: 0.05, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    }
+
+    const bg = this.add.rectangle(0, 0, cfg.cardW, cfg.cardH, isMain ? 0x33407a : THEME.panel)
+      .setStrokeStyle(isMain ? 3 : 1, isMain ? THEME.gold : THEME.panelBorder)
+      .setInteractive({ useHandCursor: true });
+    // คลิกการ์ดคิว (หรือการ์ดหลัก) เพื่อเปลี่ยนออเดอร์ที่กำลังแพ็ก (req #8)
+    bg.on('pointerdown', () => { this.selectedOrderId = order.id; this.renderOrders(); });
+    container.add(bg);
+
+    // เผื่อพื้นที่ด้านล่างไว้ให้ patience bar เสมอ ส่วนที่เหลือด้านบนใช้วางชิปสินค้า
+    const barAreaH = isMain ? 20 : 14;
+    const contentTopY = -cfg.cardH / 2 + cfg.pad;
+
+    itemEntries.forEach(([k, n], j) => {
+      const r = Math.floor(j / cfg.cols);
+      const c = j % cfg.cols;
+      const colsInRow = Math.min(cfg.cols, itemEntries.length - r * cfg.cols);
+      const rowW = colsInRow * cfg.chipW + (colsInRow - 1) * cfg.chipGap;
+      const chipX = -rowW / 2 + cfg.chipW / 2 + c * (cfg.chipW + cfg.chipGap);
+      const chipY = contentTopY + cfg.chipH / 2 + r * (cfg.chipH + cfg.chipGap);
+      this.createOrderItemChip(container, k, n, chipX, chipY, cfg);
+    });
+
+    // Patience bar: กว้างเกือบเต็มการ์ด (req #7) เก็บ reference ไว้ใน order เพื่ออัปเดตทุก tick
+    const barW = cfg.cardW - (isMain ? 20 : 14);
+    const barH = isMain ? 12 : 7;
+    const barY = cfg.cardH / 2 - barAreaH / 2 - 2;
+    const barBg = this.add.rectangle(0, barY, barW, barH, 0x111122);
+    const barFg = this.add.rectangle(-barW / 2, barY, barW, barH, 0x44cc44).setOrigin(0, 0.5);
+    order.barFg = barFg;
+    order.barW = barW;
+    container.add([barBg, barFg]);
+
+    order.card = container; // เก็บ reference ไว้ใช้ shake ตอนหมดเวลา
+    this.ordersContainer.add(container);
+    return container;
+  }
+
+  // วาด Order Board ใหม่ทั้งหมด (เรียกเฉพาะตอนออเดอร์/การเลือกเปลี่ยน ไม่ใช่ทุก tick
+  // เพราะการสร้าง Graphics ใหม่ถี่ๆ จะทำให้เฟรมเรตตกและ input ค้างได้)
+  // v0.1.2: เปลี่ยนจากตารางการ์ด 3 ใบ/แถวที่ย่อขนาดลงเรื่อยๆ ตามจำนวนออเดอร์ (ULTRA_CARD_CFG เดิม)
+  // เป็น "การ์ดหลัก" ขนาดใหญ่คงที่ 1 ใบ (ออเดอร์ที่กำลังแพ็ก) + "คิวถัดไป" ขนาดเล็กกว่าสูงสุด 3 ใบ
+  // ทำให้ความสูงรวมของโซนออเดอร์คงที่เสมอไม่ว่าจะมีกี่ออเดอร์พร้อมกัน (ไม่ดันกล่องแพ็กลงมาเกินจำเป็น)
+  renderOrders() {
+    // หยุด tween ของ glow เก่าก่อนทำลายการ์ด ป้องกัน tween ค้างอ้างอิง object ที่ถูกลบไปแล้ว
+    if (this.activeGlows) this.tweens.killTweensOf(this.activeGlows);
+    this.activeGlows = [];
+    this.ordersContainer.removeAll(true);
+
+    if (this.activeOrders.length === 0) {
+      this.relayoutBelowOrders(0);
+      return;
+    }
+
+    // เลือกออเดอร์หลักอัตโนมัติถ้ายังไม่เลือก หรือออเดอร์ที่เลือกไว้ถูกส่ง/หมดเวลาไปแล้ว
+    if (this.selectedOrderId === null || !this.activeOrders.some(o => o.id === this.selectedOrderId)) {
+      this.selectedOrderId = this.activeOrders[0].id;
+    }
+    const mainOrder = this.activeOrders.find(o => o.id === this.selectedOrderId);
+    const queueOrders = this.activeOrders.filter(o => o.id !== this.selectedOrderId);
+    const visibleQueue = queueOrders.slice(0, 3); // โชว์คิวถัดไปสูงสุด 3 ใบ ที่เหลือพับเป็น badge "+N"
+    const extraCount = queueOrders.length - visibleQueue.length;
+
+    const mainLabel = this.add.text(W / 2, 60, 'ออเดอร์ที่กำลังแพ็ก', { fontSize: '13px', color: '#9aa0c8', fontFamily: FONT }).setOrigin(0.5);
+    this.ordersContainer.add(mainLabel);
+    this.renderOrderCard(mainOrder, SELECTED_ORDER_CARD_CFG, W / 2, 100, true);
+
+    if (visibleQueue.length > 0) {
+      const queueLabel = this.add.text(W / 2, 150, 'คิวถัดไป', { fontSize: '12px', color: '#9aa0c8', fontFamily: FONT }).setOrigin(0.5);
+      this.ordersContainer.add(queueLabel);
+
+      const cfg = QUEUE_CARD_CFG;
+      const gap = 10;
+      const queueY = 193;
+      const totalW = visibleQueue.length * cfg.cardW + (visibleQueue.length - 1) * gap;
+      const startX = W / 2 - totalW / 2 + cfg.cardW / 2;
+
+      visibleQueue.forEach((order, i) => {
+        const x = startX + i * (cfg.cardW + gap);
+        this.renderOrderCard(order, cfg, x, queueY, false);
+
+        // badge "+N" บนการ์ดคิวใบสุดท้าย ถ้ามีออเดอร์ที่ซ่อนไว้มากกว่านี้ (req #2)
+        if (i === visibleQueue.length - 1 && extraCount > 0) {
+          const badgeX = x + cfg.cardW / 2 - 4;
+          const badgeY = queueY - cfg.cardH / 2 - 4;
+          const badgeBg = this.add.circle(badgeX, badgeY, 13, THEME.danger).setStrokeStyle(2, 0x1c1f3a);
+          const badgeText = this.add.text(badgeX, badgeY, '+' + extraCount, { fontSize: '11px', color: '#ffffff', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5);
+          this.ordersContainer.add([badgeBg, badgeText]);
+        }
+      });
+    }
+
+    this.updatePatienceBars();
+
+    // ความสูงรวมของ Order Board คงที่เสมอ (ไม่ขึ้นกับจำนวนออเดอร์อีกต่อไป) ใช้ดันกล่องแพ็ก/ปุ่มส่ง/
+    // ของในคลังลงมาเท่าที่จำเป็นจริงๆ (ปกติ delta = 0 เพราะค่านี้ไม่เกิน DEFAULT_DIVIDER1_Y)
+    const totalOrdersHeight = (visibleQueue.length > 0 ? 193 + QUEUE_CARD_CFG.cardH / 2 : 100 + SELECTED_ORDER_CARD_CFG.cardH / 2) + 15;
+    this.relayoutBelowOrders(totalOrdersHeight);
+  }
+
+  // คำนวณว่าพื้นที่ออเดอร์ "ล้น" พื้นที่ที่จัดไว้ตามปกติไปแค่ไหน แล้วดันทุกอย่างด้านล่าง
+  // (เส้นแบ่งโซน, กล่องแพ็ก, ปุ่มส่ง, ของในคลัง) ลงมาเท่ากันหมดด้วย container เดียว (belowOrdersContainer)
+  // ตอนออเดอร์น้อย/เล็ก (กรณีปกติ) delta จะเป็น 0 เลย์เอาต์เหมือนเดิมทุกอย่าง ไม่กระทบ UX เดิม
+  relayoutBelowOrders(totalOrdersHeight) {
+    const ordersTop = 0; // v0.1.2: ordersContainer ย้ายมาที่ (0,0) แล้ว ไม่มี offset คงที่อีกต่อไป
+    const needed = Math.max(0, (ordersTop + totalOrdersHeight) - DEFAULT_DIVIDER1_Y);
+    // จำกัด delta ไว้ไม่ให้เกิน ORDERS_MAX_DELTA เด็ดขาด (กันของในคลังหลุดจอ 844px)
+    // Order Board ใหม่มีความสูงคงที่อยู่แล้ว ปกติ needed จะเป็น 0 เสมอ ค่านี้กันไว้เผื่อจอเล็กผิดปกติ
+    this.belowOrdersContainer.y = Math.min(needed, ORDERS_MAX_DELTA);
+  }
+
+  // ตำแหน่ง y ของกล่องแพ็กบนจอจริง (boxContainer อยู่ใน belowOrdersContainer ที่เลื่อนลงได้
+  // ตาม relayoutBelowOrders ดังนั้น effect ที่วาดตรงๆ บน scene เช่น sparkle/floating text
+  // ต้องบวก offset นี้เข้าไปด้วย ไม่งั้นเอฟเฟกต์จะค้างอยู่ตำแหน่งเดิมตอนกล่องถูกดันลงมา)
+  getBoxAbsoluteY() {
+    return this.boxY + this.belowOrdersContainer.y;
+  }
+
+  // อัปเดตแค่ความกว้าง/สีของ patience bar ทุก 100ms (เบากว่าการ renderOrders() ทั้งหมด)
+  updatePatienceBars() {
+    this.activeOrders.forEach(order => {
+      if (!order.barFg) return;
+      const pct = Phaser.Math.Clamp(order.patience / order.maxPatience, 0, 1);
+      const barColor = pct > 0.5 ? THEME.success : pct > 0.25 ? THEME.gold : THEME.danger;
+      order.barFg.width = (order.barW || 94) * pct;
+      order.barFg.setFillStyle(barColor);
+    });
+  }
+
+  // ----------------- ระบบ Tap to Pack -----------------
+  packItem(key) {
+    if (this.gameOver) return;
+    this.currentBox[key] = (this.currentBox[key] || 0) + 1;
+    this.updateBoxDisplay();
+
+    // Feedback: เสียง "ติ๊ด" + ตัวเลขลอยขึ้น + กล่องเด้งเล็กน้อยตอนของ pop เข้ากล่อง
+    this.playTapSound();
+    this.spawnFloatingText(W / 2 + Phaser.Math.Between(-30, 30), this.getBoxAbsoluteY() - 20, '+1', '#3ddc97');
+    this.tweens.add({ targets: this.boxContainer, scale: 1.08, duration: 80, yoyo: true, ease: 'Sine.Out' });
+  }
+
+  // แตะของในกล่องเพื่อเอาออกทีละ 1 ชิ้น (ใช้แก้ไขกรณีแพ็กผิดจำนวน/ชนิด)
+  removeItem(key) {
+    if (this.gameOver || !this.currentBox[key]) return;
+    this.currentBox[key]--;
+    this.updateBoxDisplay();
+    this.playTapSound();
+  }
+
+  // ล้างกล่องทั้งหมด เพื่อเริ่มจัดของใหม่จากศูนย์
+  clearBox() {
+    if (this.gameOver) return;
+    this.currentBox = {};
+    this.updateBoxDisplay();
+    this.shakeObject(this.boxContainer);
+  }
+
+  updateBoxDisplay() {
+    this.boxItemsContainer.removeAll(true);
+    const entries = Object.entries(this.currentBox).filter(([k, n]) => n > 0);
+    this.boxEmptyText.setVisible(entries.length === 0);
+
+    // จัดเรียง "ป้าย" สินค้าในกล่องเป็นแถวๆ สูงสุด 2 ป้าย/แถว (พอดีเป๊ะกับความกว้างกล่อง 160px)
+    const boxHalfW = 80, boxHalfH = 55;
+    entries.forEach(([k, n], i) => {
+      const row = Math.floor(i / PILL_COLS), col = i % PILL_COLS;
+      const x = -boxHalfW + BOX_PAD + PILL_W / 2 + col * (PILL_W + PILL_GAP_X);
+      const y = -boxHalfH + BOX_PAD + PILL_H / 2 + row * (PILL_H + PILL_GAP_Y);
+      // แตะป้ายในกล่อง = เอาออก 1 ชิ้น (tap to unpack)
+      this.createBoxItemPill(this.boxItemsContainer, k, n, x, y, () => this.removeItem(k));
+    });
+
+    // เช็คว่ากล่องตรงกับออเดอร์ที่เลือกหรือไม่ -> เปลี่ยนสีปุ่มส่ง
+    const matches = this.boxMatchesSelectedOrder();
+    this.sendButton.setFillStyle(matches ? THEME.success : THEME.panel);
+    this.sendButton.setStrokeStyle(3, matches ? 0x2bb87e : THEME.panelBorder);
+    this.sendButtonText.setColor(matches ? '#ffffff' : '#9aa0c8');
+  }
+
+  boxMatchesSelectedOrder() {
+    const order = this.activeOrders.find(o => o.id === this.selectedOrderId);
+    if (!order) return false;
+    const orderKeys = Object.keys(order.items);
+    const boxKeys = Object.keys(this.currentBox).filter(k => this.currentBox[k] > 0);
+    if (orderKeys.length !== boxKeys.length) return false;
+    return orderKeys.every(k => this.currentBox[k] === order.items[k]);
+  }
+
+  // ----------------- ระบบส่งของ + คะแนน + คอมโบ -----------------
+  trySendBox() {
+    if (this.gameOver || !this.boxMatchesSelectedOrder()) return;
+    const order = this.activeOrders.find(o => o.id === this.selectedOrderId);
+
+    // คะแนน = 1 แต้ม/ประเภทสินค้าที่อยู่ในการ์ด (ออเดอร์ 1 ชนิด = 1 แต้ม, ออเดอร์ 5 ชนิด = 5 แต้ม)
+    // ไม่มี speed bonus แล้ว ตัวคูณคอมโบไปคิดรวมตอนจบเกมแทน
+    const typeCount = Object.keys(order.items).length;
+    const pointsEarned = typeCount * ORDER_BASE_SCORE;
+    this.addScore(pointsEarned);
+
+    // คอมโบ: ส่งถูกต่อกันเพิ่มทีละ 1 ผิด/หมดเวลาแล้วรีเซ็ตเป็น 0 (จัดการรีเซ็ตใน tickPatience)
+    this.combo++;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    this.spawnComboPopup(this.combo);
+
+    // ส่งสำเร็จ: นับสถิติไว้โชว์ในหน้า Game Over
+    this.ordersSent++;
+
+    // ทุกๆ ครบ 3 คอมโบ (x3, x6, x9, ...): ปลดล็อก/เติมคิวออเดอร์สูงสุดเป็น 5 แล้วสุ่มยิงออเดอร์เพิ่ม
+    // v0.1.1: ลดความรุนแรงของ surge ลง — x3 เพิ่ม 1 ใบ, x6 เพิ่ม 2 ใบ, x9+ เพิ่มสูงสุด 3 ใบ
+    // (เดิมสุ่ม 3-5 ใบทุกครั้ง หนักเกินไปสำหรับช่วง playtest 60 วินาที)
+    if (this.combo % COMBO_THRESHOLD === 0) {
+      this.maxConcurrentOrders = COMBO_MAX_ORDERS;
+      const surgeCount = Math.min(this.combo / COMBO_THRESHOLD, 3);
+      for (let i = 0; i < surgeCount; i++) this.spawnComboOrder();
+    }
+
+    // Feedback: เสียงเหรียญ + sparkle + ตัวเลขคะแนนลอยขึ้น
+    this.playSuccessSound();
+    const boxAbsY = this.getBoxAbsoluteY();
+    this.spawnSparkle(W / 2, boxAbsY);
+    this.spawnFloatingText(W / 2, boxAbsY - 40, '+' + pointsEarned, THEME.goldText);
+
+    // ลบออเดอร์ที่ส่งสำเร็จ + เคลียร์กล่อง
+    this.activeOrders = this.activeOrders.filter(o => o.id !== order.id);
+    this.currentBox = {};
+    this.selectedOrderId = null;
+    this.updateBoxDisplay();
+    this.renderOrders();
+
+    // Animation: กล่องเดิมเลื่อนออกทางขวา แล้วกล่องใหม่ (ว่าง) เลื่อนเข้าจากซ้าย
+    this.playCloseSound();
+    this.boxContainer.x = W / 2;
+    this.tweens.add({
+      targets: this.boxContainer,
+      x: W + 150,
+      duration: 200,
+      ease: 'Cubic.In',
+      onComplete: () => {
+        this.boxContainer.x = -150;
+        this.tweens.add({ targets: this.boxContainer, x: W / 2, duration: 250, ease: 'Cubic.Out' });
+      }
+    });
+  }
+
+  addScore(amount) {
+    this.score += amount;
+    this.scoreText.setText('💎 ' + this.score);
+  }
+
+  // ----------------- Loop เวลา -----------------
+  tickSecond() {
+    if (this.gameOver) return;
+    this.timeLeft--;
+    const m = Math.floor(this.timeLeft / 60).toString().padStart(2, '0');
+    const s = (this.timeLeft % 60).toString().padStart(2, '0');
+    this.timerText.setText(`⏱ ${m}:${s}`);
+    // นาทีสุดท้าย: หลอดเวลาวิ่งไวขึ้น เลยให้สีตัวจับเวลาเตือนเป็นสีแดง
+    this.timerText.setColor(this.timeLeft <= 30 ? '#ff6666' : '#ffffff');
+
+    if (this.timeLeft <= 0) {
+      this.endGame();
+    }
+  }
+
+  // ลดความอดทนของแต่ละออเดอร์ทุก 100ms ถ้าหมดเวลา = ส่งไม่ทัน (-50)
+  tickPatience() {
+    if (this.gameOver) return;
+    let changed = false;
+    // เฟส Final Rush: ความอดทนลดเร็วขึ้น (หลอดเวลาไวขึ้นตามสเปก)
+    const decay = (!EASY_LOCK_MODE && this.getCurrentPhase() === 'finalrush') ? 0.15 : 0.1;
+    this.activeOrders.forEach(order => {
+      order.patience -= decay;
+      if (order.patience <= 0 && !order.expired) {
+        order.patience = 0;
+        order.expired = true;
+        this.addScore(-50);
+        this.ordersExpired++; // นับสถิติไว้โชว์ในหน้า Game Over
+
+        // หมดเวลา = คอมโบขาด รีเซ็ตเป็น 0 และคิวออเดอร์สูงสุดกลับเป็นค่าปกติ
+        this.combo = 0;
+        this.maxConcurrentOrders = NORMAL_MAX_ORDERS;
+
+        // Feedback: เสียง buzzer + shake การ์ด + ตัวเลข -50 ลอยสีแดง
+        this.playBuzzerSound();
+        if (order.card) this.shakeObject(order.card);
+        // v0.1.2: การ์ดออเดอร์ใหม่ใช้ origin กึ่งกลาง (order.card.x คือจุดกึ่งกลางการ์ดอยู่แล้ว
+        // ไม่ใช่ขอบซ้ายแบบเดิม) จึงไม่ต้องบวก offset +55 แบบเดิมอีกต่อไป
+        this.spawnFloatingText(order.card ? order.card.x : W / 2, order.card ? order.card.y : 110, '-50', '#e94560');
+      }
+    });
+    const before = this.activeOrders.length;
+    this.activeOrders = this.activeOrders.filter(o => !o.expired);
+    if (this.activeOrders.length !== before) {
+      this.selectedOrderId = null;
+      changed = true;
+    }
+    // rebuild การ์ดทั้งหมดเฉพาะตอนมีออเดอร์หมดเวลา (โครงสร้างเปลี่ยน)
+    // ส่วนกรณีปกติแค่ขยับ/เปลี่ยนสี patience bar เบาๆ พอ ไม่ทำให้ input ค้าง
+    if (changed) {
+      this.renderOrders();
+    } else {
+      this.updatePatienceBars();
+    }
+  }
+
+  // ----------------- Game Over -----------------
+  endGame() {
+    this.gameOver = true;
+    this.secondTimer.remove();
+    this.patienceTimer.remove();
+    this.spawnTimer.remove();
+
+    // ตอนจบเกม v0.1.1: เปลี่ยนจากคูณคอมโบ เป็นบวกโบนัสตามคอมโบสูงสุดแทน (อ่านง่ายกว่า ไม่พุ่งแรงเกิน
+    // สำหรับรอบเล่น 60 วินาที) คะแนนสุดท้ายต้องไม่ต่ำกว่า 0 (กันกรณีโดน -50 จนคะแนนก่อนบวกโบนัสติดลบ)
+    this.scoreBeforeMultiplier = this.score;
+    this.comboBonus = this.maxCombo * 10;
+    this.score = Math.max(0, this.scoreBeforeMultiplier + this.comboBonus);
+    this.scoreText.setText('💎 ' + this.score);
+
+    // อ่าน/บันทึกคะแนนสูงสุดจาก localStorage (ไม่มีระบบออนไลน์ เก็บเฉพาะในเครื่องผู้เล่น)
+    const prevHighScore = parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0', 10);
+    this.isNewHighScore = this.score > prevHighScore;
+    this.highScore = this.isNewHighScore ? this.score : prevHighScore;
+    if (this.isNewHighScore) localStorage.setItem(HIGH_SCORE_KEY, String(this.score));
+
+    this.showGameOverScreen();
+  }
+
+  // คำนวณจำนวนดาวจากคะแนน ตามเกณฑ์ playtest 60 วินาที: 20=⭐ 45=⭐⭐ 75+=⭐⭐⭐
+  calcStars(score) {
+    if (score >= 75) return 3;
+    if (score >= 45) return 2;
+    if (score >= 20) return 1;
+    return 0;
+  }
+
+  showGameOverScreen() {
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(200);
+    const panel = this.add.rectangle(W / 2, H / 2, 320, 480, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(201);
+
+    const baseY = H / 2 - 210;
+    const title = this.add.text(W / 2, baseY, 'หมดเวลา!', { fontSize: '28px', color: '#ffffff', fontStyle: 'bold', fontFamily: FONT })
+      .setOrigin(0.5).setDepth(202).setShadow(0, 2, '#000000', 4, false, true);
+
+    // แจกแจงสถิติ: คะแนนก่อนบวกโบนัส + โบนัสคอมโบ + คอมโบสูงสุด + ส่งสำเร็จ + หมดเวลา (req #6)
+    const statLines = [
+      `คะแนนก่อนโบนัส: ${this.scoreBeforeMultiplier}`,
+      `โบนัสคอมโบ (x${this.maxCombo} × 10): +${this.comboBonus}`,
+      `คอมโบสูงสุด: x${this.maxCombo}`,
+      `ส่งสำเร็จ: ${this.ordersSent} ออเดอร์`,
+      `หมดเวลา: ${this.ordersExpired} ออเดอร์`
+    ];
+    statLines.forEach((line, i) => {
+      this.add.text(W / 2, baseY + 40 + i * 24, line, { fontSize: '14px', color: '#9aa0c8', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    });
+
+    const scoreText = this.add.text(W / 2, baseY + 185, `คะแนนรวม: ${this.score}`, { fontSize: '22px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+
+    // คะแนนสูงสุด + ป้าย "สถิติใหม่!" ถ้าทำลายสถิติเดิม (req #5)
+    this.add.text(W / 2, baseY + 210, `คะแนนสูงสุด: ${this.highScore}`, { fontSize: '14px', color: '#ffffff', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    if (this.isNewHighScore) {
+      const badge = this.add.text(W / 2, baseY + 232, '🏆 สถิติใหม่!', { fontSize: '16px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+      this.tweens.add({ targets: badge, scale: { from: 0.6, to: 1 }, duration: 300, ease: 'Back.Out' });
+    }
+
+    // ดาว: วาดด้วย Phaser star shape ไม่ใช้รูปภาพ
+    const stars = this.calcStars(this.score);
+    const starY = baseY + 270;
+    for (let i = 0; i < 3; i++) {
+      const filled = i < stars;
+      const star = this.add.star(W / 2 - 60 + i * 60, starY, 5, 18, 36, filled ? THEME.gold : 0x3a3f63)
+        .setStrokeStyle(2, 0x1c1f3a)
+        .setDepth(202);
+      if (filled) {
+        this.tweens.add({ targets: star, scale: { from: 0, to: 1 }, duration: 350, delay: i * 120, ease: 'Back.Out' });
+      }
+    }
+
+    const playAgainBtn = this.add.rectangle(W / 2, baseY + 330, 220, 56, THEME.success).setStrokeStyle(3, 0x2bb87e).setInteractive({ useHandCursor: true }).setDepth(202);
+    this.add.text(W / 2, baseY + 330, 'เล่นใหม่ 🔄', { fontSize: '20px', color: '#ffffff', fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    playAgainBtn.on('pointerdown', () => this.scene.restart());
+  }
+}
+
+// ===================== Phaser Config =====================
+const config = {
+  type: Phaser.AUTO,
+  width: W,
+  height: H,
+  parent: 'game-container',
+  backgroundColor: '#1a1a2e',
+  scene: [GameScene],
+  // Scale.NONE: ปิด auto-scale ของ Phaser ทั้งหมด เพราะ Scale Manager คำนวณพลาดจังหวะ
+  // บน iOS Safari (เกินจอ/ขอบดำเพี้ยน) เราคำนวณ scale/ตำแหน่ง canvas เอง 100% ด้วย JS
+  // ด้านล่าง (fitGameContainer) แทน ให้ผลลัพธ์แม่นยำและคาดเดาได้ทุกอุปกรณ์
+  scale: {
+    mode: Phaser.Scale.NONE,
+    width: W,
+    height: H
+  }
+};
+
+const game = new Phaser.Game(config);
+
+// ----------------- บังคับขนาด/ตำแหน่ง canvas เองด้วย JS (ไม่พึ่ง Phaser Scale Manager) -----------------
+// เหตุผล: Scale Manager ของ Phaser (FIT/ENVELOP) คำนวณพลาดจังหวะบน iOS Safari ตอน toolbar
+// บน/ล่างซ่อนหรือโผล่ขึ้นมา ทำให้เกมล้นจอหรือไม่เต็มจอ เราคำนวณ scale + ตำแหน่งเองตรงๆ แทน
+// ใช้ window.visualViewport (รองรับ iOS Safari/Chrome ทุกรุ่นใหม่) อ่านขนาดจอที่แสดงผลจริง
+function fitGameContainer() {
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : window.innerWidth;
+  const vh = vv ? vv.height : window.innerHeight;
+
+  const container = document.getElementById('game-container');
+  container.style.width = vw + 'px';
+  container.style.height = vh + 'px';
+
+  const canvas = container.querySelector('canvas');
+  if (!canvas) return;
+
+  // ย่อ/ขยายให้ "พอดีกับจอ" (contain): ใช้ค่า scale ที่น้อยกว่า เพื่อให้เกมแสดงครบ 100%
+  // ไม่มี UI หลุดจอแน่นอน ต่างจาก cover (Math.max) ที่ซูมจนล้น เหมาะกับ iPad ที่สัดส่วนจอ
+  // ต่างจาก 390x844 มาก (เกือบจัตุรัส) ถ้าใช้ cover จะซูมจนปุ่มบน/ล่างหลุดจอไปเลย
+  const scale = Math.min(vw / W, vh / H);
+  const renderW = W * scale;
+  const renderH = H * scale;
+
+  canvas.style.width = renderW + 'px';
+  canvas.style.height = renderH + 'px';
+  canvas.style.left = ((vw - renderW) / 2) + 'px';
+  canvas.style.top = ((vh - renderH) / 2) + 'px';
+}
+window.addEventListener('resize', fitGameContainer);
+window.addEventListener('orientationchange', fitGameContainer);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitGameContainer);
+fitGameContainer();
+</script>
+</body>
+</html>

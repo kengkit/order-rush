@@ -85,55 +85,60 @@ const PILL_GAP_X = 8;
 const PILL_GAP_Y = 8;
 const BOX_PAD = 8;
 
-// ธีม "Dark Neon Premium" (Theme Skin Patch) — พื้นหลังดำอมม่วง/ม่วงเข้ม, panel เข้ม, accent
-// ชมพูนีออน/ม่วง/ฟ้า/เหลืองทอง ดู modern + premium ขึ้น โครงสร้าง/ตำแหน่ง UI/gameplay ไม่เปลี่ยน
-// เปลี่ยนแค่ค่าสีและ chrome รอบๆ — field เดิม (panel, panelBorder, gold, danger, success ฯลฯ)
-// ยังใช้ชื่อเดิมหมดเพื่อให้จุดที่อ้างอิงอยู่แล้วทั่วโค้ด (patience bar, badge, stroke ฯลฯ) ได้ธีมใหม่
-// อัตโนมัติโดยไม่ต้องแก้ logic ทุกจุด — เพิ่มแค่ field ใหม่ (panelAlt, accent*, text*) สำหรับ chrome ใหม่
+// ธีมแบรนด์ "WAAN KUEN TA × SM" — อิงโลโก้จริงทั้งสองแบรนด์: WAAN KUEN TA = วงกลมเหลืองนีออน
+// บนพื้นดำสนิท (ไซรัป), SM = เพชร/เงินหรูหรา (แหวน) → พื้นหลังดำถ่าน, accent หลักเหลืองนีออน
+// (CTA ใช้ตัวหนังสือดำบนพื้นเหลืองแบบเดียวกับโลโก้), accent รองสีเงินสำหรับฝั่งแหวน SM
+// แดง/เขียวคงไว้เพื่อความชัดเจนของ feedback (เตือน/สำเร็จ) เหมือนเดิม
 const THEME = {
-  bgTop: 0x1a0e2e,      // ม่วงเข้มอมดำ
-  bgBottom: 0x0a0612,   // ดำอมม่วง
-  panel: 0x1f1430,      // panel เข้ม
-  panelAlt: 0x2a1d40,   // panel เข้มรองลงมา (กล่องออเดอร์/ป้ายในกล่อง/state "ยังไม่พร้อม")
-  panelBorder: 0xff4fd8, // ขอบนีออนชมพู/ม่วง (บาง ใช้กับการ์ดคิว/กล่องออเดอร์/inventory)
-  gold: 0xffd166,        // เหลืองทองอุ่น (ดาว/คะแนน/ป้ายเตือนพิเศษ)
-  goldText: '#ffd166',
-  danger: 0xff3d71,      // แดง/ชมพูนีออน (เตือน/หมดเวลา/badge)
-  success: 0x35e0a1,     // เขียวมินต์นีออน (ส่งสำเร็จ/พร้อมส่ง)
-  // ม่วงองุ่นเข้ม — ใช้เป็นพื้นการ์ดหลัก (เข้มพอที่จะไม่กลืนไอคอนขวด/label ขาวด้านบน)
-  bazziAccentDark: 0x2a1450,
-  // โทนพื้นหลัง Top Order Board: ม่วงเข้มอมดำ โปร่งแสง ไม่แย่งความสนใจจากการ์ด
-  boardPanel: 0x140a24,
-  accentPink: 0xff4fd8,   // ชมพูนีออนสด — CTA/ไฮไลต์หลัก
-  accentPurple: 0x8b5cf6, // ม่วงสด — คู่กับชมพูใน gradient CTA
-  accentBlue: 0x4fd6ff,   // ฟ้าไฟฟ้า — ไอคอนเพชร/คะแนน
+  bgTop: 0x1e1e1e,      // ดำถ่านอ่อน (บน)
+  bgBottom: 0x0c0c0c,   // ดำเกือบสนิท (ล่าง) — โทนเดียวกับพื้นโลโก้ WAAN KUEN TA
+  panel: 0x212121,      // panel เข้ม
+  panelAlt: 0x2b2b2b,   // panel เข้มรองลงมา (กล่องออเดอร์/ป้ายในกล่อง/state "ยังไม่พร้อม")
+  panelBorder: 0x7d8620, // ขอบเหลืองหม่น (บาง ใช้กับการ์ดคิว/กล่องออเดอร์/inventory)
+  gold: 0xffd166,        // เหลืองทองอุ่น (ดาวตอนจบเกม)
+  goldText: '#dcef22',   // ตัวเลขคะแนน/คอมโบ ใช้เหลืองนีออนแบรนด์
+  danger: 0xff3d55,      // แดงนีออน (เตือน/หมดเวลา/badge)
+  success: 0x35e0a1,     // เขียวมินต์นีออน (ส่งสำเร็จ/หลอดเวลาเต็ม)
+  // พื้นการ์ดหลัก: ดำอมเหลืองมะกอกเข้มๆ ให้ต่างจากการ์ดคิวชัดเจนแต่ไม่กลืนไอคอน/label ขาว
+  mainCardBg: 0x26290f,
+  // โทนพื้นหลัง Top Order Board: ดำถ่าน โปร่งแสง ไม่แย่งความสนใจจากการ์ด
+  boardPanel: 0x161616,
+  accentNeon: 0xdcef22,     // เหลืองนีออนแบรนด์ WAAN KUEN TA — CTA/ไฮไลต์หลัก
+  accentNeonDark: 0x9fb00f, // เหลืองมะกอกเข้ม — คู่ gradient CTA/ขอบรอง
+  accentSilver: 0xd4dae3,   // เงินเพชรแบรนด์ SM — ไอคอนเพชร/ของฝั่งแหวน
   textPrimary: '#ffffff',
-  textSecondary: '#b9a8d9', // ม่วงลาเวนเดอร์อมเทา — ข้อความรอง
+  textSecondary: '#a8ab9a', // เทาอมเหลืองหม่น — ข้อความรอง
   successText: '#35e0a1',
-  dangerText: '#ff3d71',
-  accentPinkText: '#ff4fd8'
+  dangerText: '#ff3d55',
+  accentNeonText: '#dcef22',
+  ctaText: '#141414' // ตัวหนังสือดำบนปุ่มเหลืองนีออน (แบบเดียวกับตัวอักษรดำบนวงกลมเหลืองของโลโก้)
 };
 
-// สเปกสินค้าไซรัป 6 รส — shape ทุกตัวเป็น 'bottle' ยกเว้น F (Bazzi) ที่ใช้ 'bottleStout' (ทรงอวบ/
-// เตี้ยกว่าเล็กน้อย แต่ยังเป็นขวด family เดียวกัน) สีต้องตรงตามสเปกเป๊ะ
-// label = รหัสสินค้าเต็มที่วาดบนขวดตอนเป็นปุ่ม inventory ด้านล่าง (พื้นที่กว้างพอ)
-// shortLabel = รหัสย่อที่วาดบนขวดในการ์ดออเดอร์ด้านบน (main/queue) ที่พื้นที่เล็กกว่า ดู drawProductShape
+// สเปกสินค้า 2 หมวด (v0.3.0 "WAAN KUEN TA × SM"): ไซรัป 3 รส (NTS/RMO/BZ ขวดเหมือนเดิม) +
+// แหวนเงินเพชร 3 รุ่น (SM01-SM03 — เงิน family เดียวกัน แยกรุ่นด้วยรูปทรงเพชร: กลม/เหลี่ยม/หยดน้ำ
+// และเฉดเงินอ่อน-เข้มต่างกันเล็กน้อย) ทุกออเดอร์จะเป็นหมวดเดียวล้วนๆ เสมอ (ดู ORDER_POOL/
+// generateRandomOrderItems) — category ใช้แยกหมวดตอนสุ่มออเดอร์
+// label/shortLabel = รหัสที่วาดบนป้ายสินค้า ดู drawProductShape
 const PRODUCTS = {
-  A: { name: 'น้ำตาลสด', color: 0x1F6B3A, shape: 'bottle',      label: 'NTS',     shortLabel: 'NTS' },
-  B: { name: 'โรมีโอ',   color: 0xD32F2F, shape: 'bottle',      label: 'RMO',     shortLabel: 'RMO' },
-  C: { name: 'ใบเตย',    color: 0x7BC96F, shape: 'bottle',      label: 'PDN',     shortLabel: 'PDN' },
-  D: { name: 'ลิ้นจี่',   color: 0xE9799A, shape: 'bottle',      label: 'MiW LCY', shortLabel: 'LCY' },
-  E: { name: 'คาราเมล',  color: 0x8B5A2B, shape: 'bottle',      label: 'CRM',     shortLabel: 'CRM' },
-  F: { name: 'องุ่น',     color: 0x7B4FB5, shape: 'bottleStout', label: 'BAZZI',   shortLabel: 'BZ' }
+  A: { name: 'น้ำตาลสด',  color: 0x1F6B3A, shape: 'bottle',      label: 'NTS',   shortLabel: 'NTS',  category: 'syrup' },
+  B: { name: 'โรมีโอ',    color: 0xD32F2F, shape: 'bottle',      label: 'RMO',   shortLabel: 'RMO',  category: 'syrup' },
+  C: { name: 'องุ่น',      color: 0x7B4FB5, shape: 'bottleStout', label: 'BAZZI', shortLabel: 'BZ',   category: 'syrup' },
+  D: { name: 'แหวน SM01', color: 0xE2E7EF, shape: 'ringRound',   label: 'SM01',  shortLabel: 'SM01', category: 'ring' },
+  E: { name: 'แหวน SM02', color: 0xC4CCD8, shape: 'ringSquare',  label: 'SM02',  shortLabel: 'SM02', category: 'ring' },
+  F: { name: 'แหวน SM03', color: 0xA9B3C4, shape: 'ringPear',    label: 'SM03',  shortLabel: 'SM03', category: 'ring' }
 };
 const PRODUCT_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'];
+// แยกคีย์ตามหมวดไว้ใช้สุ่มออเดอร์แบบ "หมวดเดียวล้วน" (ไซรัปล้วน หรือ แหวนล้วน ห้ามปนกัน)
+const SYRUP_KEYS = ['A', 'B', 'C'];
+const RING_KEYS = ['D', 'E', 'F'];
 
-// ออเดอร์ไล่ระดับความยาก (ใช้เป็น pool สุ่มตามเฟส) — v0.1.6: ปรับให้สุ่มใช้สินค้าใหม่ 6 รสได้ทั้งหมด
-// easy = 1 ชนิด, medium = 2 ชนิด, hard = 3-5 ชนิด (logic การสุ่ม/ความยากเดิมไม่เปลี่ยน)
+// ออเดอร์ไล่ระดับความยาก (ใช้เป็น pool สุ่มตามเฟส) — v0.3.0: ทุกใบเป็น "หมวดเดียวล้วน" เสมอ
+// (ไซรัปล้วน A/B/C หรือ แหวนล้วน D/E/F ห้ามปนกันในใบเดียว ตามสเปกแบรนด์)
+// easy = 1 ชนิด, medium = 2 ชนิดหมวดเดียวกัน, hard = 2-3 ชนิดหมวดเดียวกัน+จำนวนมากขึ้น
 const ORDER_POOL = {
   easy: [ { A: 1 }, { B: 1 }, { C: 1 }, { D: 1 }, { E: 1 }, { F: 1 } ],
-  medium: [ { A: 1, B: 1 }, { C: 1, D: 1 }, { E: 1, F: 1 } ],
-  hard: [ { A: 1, B: 1, C: 1 }, { B: 2, D: 1, F: 1 }, { C: 1, D: 1, E: 1, F: 1 }, { A: 1, B: 1, C: 1, D: 1, E: 1 } ]
+  medium: [ { A: 1, B: 1 }, { B: 1, C: 1 }, { A: 1, C: 1 }, { D: 1, E: 1 }, { E: 1, F: 1 }, { D: 1, F: 1 } ],
+  hard: [ { A: 1, B: 1, C: 1 }, { A: 2, B: 2 }, { B: 1, C: 2 }, { D: 1, E: 1, F: 1 }, { D: 2, F: 2 }, { E: 2, F: 1 } ]
 };
 
 // ===================== Scene หลัก: GameScene =====================
@@ -174,11 +179,11 @@ class GameScene extends Phaser.Scene {
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(300);
     const panel = this.add.rectangle(W / 2, H / 2, 320, 420, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(301);
 
-    // ชื่อเกมชั่วคราว "SYRUP RUSH" (ตัวพิมพ์ใหญ่ + สีชมพูนีออน ตาม Theme Skin Patch) + คำอธิบายสั้นๆ
-    const title = this.add.text(W / 2, H / 2 - 170, 'SYRUP RUSH', { fontSize: '32px', color: THEME.accentPinkText, fontStyle: 'bold', fontFamily: FONT })
+    // ชื่อเกม "SYRUP RUSH" (เหลืองนีออนแบรนด์ WAAN KUEN TA) + คำอธิบายสั้นๆ
+    const title = this.add.text(W / 2, H / 2 - 170, 'SYRUP RUSH', { fontSize: '32px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
       .setOrigin(0.5).setDepth(302).setShadow(0, 2, '#000000', 4, false, true);
 
-    const subtitle = this.add.text(W / 2, H / 2 - 130, 'จัดออเดอร์ไซรัปให้ทัน ก่อนลูกค้ารอไม่ไหว!', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT })
+    const subtitle = this.add.text(W / 2, H / 2 - 130, 'จัดออเดอร์ไซรัปและแหวนให้ทัน ก่อนลูกค้ารอไม่ไหว!', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT })
       .setOrigin(0.5).setDepth(302);
 
     const bullets = [
@@ -193,11 +198,15 @@ class GameScene extends Phaser.Scene {
         .setOrigin(0.5).setDepth(302)
     );
 
-    // CTA หลักเด่น: ชมพูนีออน/ม่วงแทนเขียวเดิม ให้เข้าธีม dark neon premium (ฟังก์ชัน/ขนาด/ตำแหน่งเดิม)
-    const startBtn = this.add.rectangle(W / 2, H / 2 + 150, 220, 56, THEME.accentPink).setStrokeStyle(3, THEME.accentPurple).setInteractive({ useHandCursor: true }).setDepth(302);
-    const startBtnText = this.add.text(W / 2, H / 2 + 150, 'เริ่มเกม', { fontSize: '20px', color: THEME.textPrimary, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(302);
+    // โลโก้ทั้งสองแบรนด์คู่กันใต้วิธีเล่น (WAAN KUEN TA ฝั่งไซรัป × SM ฝั่งแหวน)
+    const wktLogo = this.drawWaanKuenTaLogo(W / 2 - 58, H / 2 + 92, 28).setDepth(302);
+    const smLogo = this.drawSMLogo(W / 2 + 58, H / 2 + 92, 30).setDepth(302);
 
-    const startScreenObjects = [overlay, panel, title, subtitle, startBtn, startBtnText, ...bulletTexts];
+    // CTA หลักเด่น: เหลืองนีออน + ตัวหนังสือดำ แบบเดียวกับโลโก้ WAAN KUEN TA
+    const startBtn = this.add.rectangle(W / 2, H / 2 + 150, 220, 56, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(302);
+    const startBtnText = this.add.text(W / 2, H / 2 + 150, 'เริ่มเกม', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(302);
+
+    const startScreenObjects = [overlay, panel, title, subtitle, startBtn, startBtnText, wktLogo, smLogo, ...bulletTexts];
     startBtn.on('pointerdown', () => {
       startScreenObjects.forEach(o => o.destroy());
       this.startGame();
@@ -225,11 +234,15 @@ class GameScene extends Phaser.Scene {
     g.fillGradientStyle(THEME.bgTop, THEME.bgTop, THEME.bgBottom, THEME.bgBottom, 1);
     g.fillRect(0, 0, W, H);
 
-    // glow blob เบาๆ สีชมพู/ม่วง/แดงเข้ม ลอยตามมุมจอ ให้ mood แบบ dark neon premium (ไม่ใช้รูปภาพ)
-    [{ x: 40, y: 100, r: 130, c: THEME.accentPink }, { x: W - 30, y: H * 0.5, r: 150, c: THEME.accentPurple }, { x: 60, y: H - 120, r: 120, c: THEME.danger }]
+    // glow blob เบาๆ สีเหลืองนีออน/เงิน ลอยตามมุมจอ ให้ mood แบบพรีเมียมสองแบรนด์ (ไม่ใช้รูปภาพ)
+    [{ x: 40, y: 100, r: 130, c: THEME.accentNeon }, { x: W - 30, y: H * 0.5, r: 150, c: THEME.accentSilver }, { x: 60, y: H - 120, r: 120, c: THEME.accentNeonDark }]
       .forEach(spot => {
         const glow = this.add.circle(spot.x, spot.y, spot.r, spot.c, 0.07).setDepth(-9);
       });
+
+    // ลายน้ำโลโก้ทั้งสองแบรนด์จางๆ บนพื้นหลัง (ตกแต่งตามสเปก ไม่แย่งความสนใจจาก UI เกม)
+    this.drawWaanKuenTaLogo(W - 78, H - 150, 70).setDepth(-8).setAlpha(0.07);
+    this.drawSMLogo(78, H * 0.52, 55).setDepth(-8).setAlpha(0.09);
   }
 
   // ไอคอนนาฬิกาเล็กๆ วาดเอง (วงกลม + เข็ม 2 เข็ม) ใช้แทน emoji ⏱ ในแคปซูล timer ของ HUD
@@ -246,7 +259,7 @@ class GameScene extends Phaser.Scene {
   }
 
   // ไอคอนเพชรเล็กๆ วาดเอง (สี่เหลี่ยมข้าวหลามตัด) ใช้แทน emoji 💎 ในแคปซูล score ของ HUD
-  // ด้วยเหตุผลเดียวกับ drawClockIcon — ต้องการคุมสีให้เป็นฟ้าไฟฟ้าตามธีมใหม่
+  // ด้วยเหตุผลเดียวกับ drawClockIcon — ต้องการคุมสีให้เป็นเงินเพชรตามแบรนด์ SM
   drawDiamondIcon(g, x, y, size, color) {
     g.fillStyle(color, 1);
     g.beginPath();
@@ -256,6 +269,64 @@ class GameScene extends Phaser.Scene {
     g.lineTo(x - size * 0.75, y);
     g.closePath();
     g.fillPath();
+  }
+
+  // ----------------- โลโก้แบรนด์ (วาดด้วย Graphics/Text ล้วนๆ ตามข้อจำกัดห้ามใช้ไฟล์รูป) -----------------
+  // โลโก้ WAAN KUEN TA (ฉบับ vector อย่างง่าย): วงกลมเหลืองนีออน + กรอบขวดมนสีดำ + ลายเส้น W
+  // ซิกแซกข้างใน + ชื่อแบรนด์ตัวดำหนาด้านล่างในวงกลม — คืนค่าเป็น container ให้ผู้เรียกจัดวาง/ตั้ง
+  // depth/alpha เองได้ (ใช้ทั้งแบบเต็มสีบน start screen และแบบจางเป็นลายน้ำบนพื้นหลัง)
+  drawWaanKuenTaLogo(x, y, r) {
+    const c = this.add.container(x, y);
+    const g = this.add.graphics();
+    g.fillStyle(THEME.accentNeon, 1);
+    g.fillCircle(0, 0, r);
+    // กรอบทรงขวดมุมโค้ง (เหมือน mark ในโลโก้จริง)
+    g.lineStyle(Math.max(2, r * 0.08), 0x141414, 1);
+    g.strokeRoundedRect(-r * 0.4, -r * 0.72, r * 0.8, r * 1.02, r * 0.24);
+    // ลายเส้น W ซิกแซกในกรอบ (ตัวแทนลายเส้นแนวตั้งสไตล์โลโก้จริง แบบ stylized)
+    g.lineStyle(Math.max(2, r * 0.09), 0x141414, 1);
+    g.beginPath();
+    g.moveTo(-r * 0.26, -r * 0.6);
+    g.lineTo(-r * 0.13, r * 0.16);
+    g.lineTo(0, -r * 0.38);
+    g.lineTo(r * 0.13, r * 0.16);
+    g.lineTo(r * 0.26, -r * 0.6);
+    g.strokePath();
+    c.add(g);
+    const t = this.add.text(0, r * 0.55, 'WAAN KUEN TA', {
+      fontSize: Math.max(6, Math.round(r * 0.17)) + 'px', color: '#141414', fontStyle: 'bold', fontFamily: FONT
+    }).setOrigin(0.5);
+    c.add(t);
+    return c;
+  }
+
+  // โลโก้ SM (ฉบับ vector อย่างง่าย): เพชรเส้นเงิน + ตัวอักษร SM + ประกายดาวเล็กๆ
+  // สไตล์เครื่องประดับหรูโทนเงิน คืนค่าเป็น container เช่นเดียวกับ drawWaanKuenTaLogo
+  drawSMLogo(x, y, s) {
+    const c = this.add.container(x, y);
+    const g = this.add.graphics();
+    g.lineStyle(Math.max(1.5, s * 0.07), THEME.accentSilver, 1);
+    // เพชรทรง kite ด้านซ้าย + เส้นหน้าตัด (table) ด้านบน
+    g.beginPath();
+    g.moveTo(-s * 0.55, -s * 0.45);
+    g.lineTo(-s * 0.2, -s * 0.15);
+    g.lineTo(-s * 0.55, s * 0.35);
+    g.lineTo(-s * 0.9, -s * 0.15);
+    g.closePath();
+    g.strokePath();
+    g.beginPath();
+    g.moveTo(-s * 0.78, -s * 0.15);
+    g.lineTo(-s * 0.32, -s * 0.15);
+    g.strokePath();
+    c.add(g);
+    const t = this.add.text(s * 0.25, 0, 'SM', {
+      fontSize: Math.round(s * 0.62) + 'px', color: '#e8ecf2', fontStyle: 'bold', fontFamily: FONT
+    }).setOrigin(0.5);
+    c.add(t);
+    // ประกายเพชรเล็กๆ 2 จุด ให้ความรู้สึกเครื่องประดับ
+    c.add(this.add.star(-s * 0.55, -s * 0.62, 4, s * 0.05, s * 0.14, THEME.accentSilver));
+    c.add(this.add.star(s * 0.75, -s * 0.42, 4, s * 0.04, s * 0.11, THEME.accentSilver));
+    return c;
   }
 
   // ----------------- ระบบเสียง (Web Audio API ล้วนๆ ไม่ใช้ไฟล์เสียง) -----------------
@@ -302,10 +373,10 @@ class GameScene extends Phaser.Scene {
     // "บอร์ดคำสั่งงาน" ชิ้นเดียวที่คลีนขึ้น — ไม่ setInteractive จึงไม่บังการคลิกการ์ดด้านบน และ
     // ใช้ setDepth(-1) ให้แน่ใจว่าอยู่หลังสุดเสมอไม่ว่าจะสร้างก่อน/หลังอะไร
     // v0.1.8: ขยายลงไปถึง y=300 ให้พอดีกับการ์ดที่ใหญ่ขึ้น (ดู renderOrders + DEFAULT_DIVIDER1_Y)
-    // Theme Skin Patch: ขอบเปลี่ยนเป็นชมพูนีออนบางๆ (จากทอง) ให้เข้าธีม dark neon premium
+    // ขอบเหลืองนีออนบางๆ ตามธีมแบรนด์ WAAN KUEN TA
     const topBoardPanelTop = 10, topBoardPanelBottom = 300;
     this.topBoardPanel = this.add.rectangle(W / 2, (topBoardPanelTop + topBoardPanelBottom) / 2, W - 20, topBoardPanelBottom - topBoardPanelTop, THEME.boardPanel, 0.42)
-      .setStrokeStyle(2, THEME.accentPink, 0.35)
+      .setStrokeStyle(2, THEME.accentNeon, 0.35)
       .setDepth(-1);
 
     // HUD แบบ capsule card (Theme Skin Patch): พื้นหลังมุมโค้งเข้ม + ไอคอนวาดเองสีตาม accent
@@ -318,7 +389,7 @@ class GameScene extends Phaser.Scene {
     hudG.strokeRoundedRect(12, 10, 108, 38, 19);
     hudG.strokeRoundedRect(W - 150, 10, 138, 38, 19);
     this.drawClockIcon(hudG, 34, 29, 11, THEME.danger);
-    this.drawDiamondIcon(hudG, W - 128, 29, 10, THEME.accentBlue);
+    this.drawDiamondIcon(hudG, W - 128, 29, 10, THEME.accentSilver);
 
     const initM = Math.floor(TIME_LIMIT_SECONDS / 60).toString().padStart(2, '0');
     const initS = (TIME_LIMIT_SECONDS % 60).toString().padStart(2, '0');
@@ -347,9 +418,9 @@ class GameScene extends Phaser.Scene {
     this.boxY = boxY;
     this.boxContainer = this.add.container(W / 2, boxY);
     // กล่องสีน้ำตาลทั้งกล่อง = ปุ่มยกเลิก/ล้างของที่แพ็กไว้ (แทนปุ่ม "ล้าง" แยก)
-    // Theme Skin Patch: เปลี่ยนจากกล่องไม้สีน้ำตาลเดิม เป็น dark premium panel + ขอบนีออมม่วงบางๆ
+    // กล่องออเดอร์: dark premium panel + ขอบเหลืองมะกอกบางๆ ตามธีมแบรนด์
     // (ฟังก์ชันเดิมทุกอย่าง: แตะเพื่อยกเลิก/ล้างกล่อง)
-    this.boxGraphic = this.add.rectangle(0, 0, 160, 110, THEME.panelAlt).setStrokeStyle(2, THEME.accentPurple, 0.8).setInteractive({ useHandCursor: true });
+    this.boxGraphic = this.add.rectangle(0, 0, 160, 110, THEME.panelAlt).setStrokeStyle(2, THEME.accentNeonDark, 0.8).setInteractive({ useHandCursor: true });
     this.boxGraphic.on('pointerdown', () => this.clearBox());
     this.boxLabel = this.add.text(0, -70, '📦 กล่องออเดอร์ (แตะเพื่อยกเลิก)', { fontSize: '13px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
     this.boxItemsContainer = this.add.container(0, 0); // เก็บไอคอน shape ของของในกล่อง (แทน emoji text)
@@ -357,14 +428,14 @@ class GameScene extends Phaser.Scene {
 
     this.boxContainer.add([this.boxGraphic, this.boxLabel, this.boxItemsContainer, this.boxEmptyText]);
 
-    // ปุ่มส่ง (Theme Skin Patch): gradient ชมพูนีออน→ม่วง + glow รอบปุ่มตอนของครบพร้อมส่ง — วาดด้วย
+    // ปุ่มส่ง: gradient เหลืองนีออน→เหลืองมะกอก + glow รอบปุ่มตอนของครบพร้อมส่ง — วาดด้วย
     // Graphics เพราะ Phaser Rectangle ปกติไม่รองรับ gradient fill/มุมโค้ง ส่วน hit area คลิกจริง
     // (this.sendButton) ทำให้โปร่งใสซ้อนทับตำแหน่ง/ขนาดเดิมไว้ ฟังก์ชัน trySendBox() ไม่เปลี่ยน
     const sendButtonY = H * 0.62 + 12;
     this.sendButtonY = sendButtonY;
     this.sendButtonW = 220;
     this.sendButtonH = 56;
-    this.sendButtonGlow = this.add.rectangle(W / 2, sendButtonY, this.sendButtonW + 24, this.sendButtonH + 24, THEME.accentPink, 0.08);
+    this.sendButtonGlow = this.add.rectangle(W / 2, sendButtonY, this.sendButtonW + 24, this.sendButtonH + 24, THEME.accentNeon, 0.08);
     this.sendButtonGraphic = this.add.graphics();
     this.drawSendButtonGraphic(false); // เริ่มต้นที่ state "ยังไม่พร้อมส่ง"
     this.sendButton = this.add.rectangle(W / 2, sendButtonY, this.sendButtonW, this.sendButtonH, 0xffffff, 0).setInteractive({ useHandCursor: true });
@@ -392,18 +463,18 @@ class GameScene extends Phaser.Scene {
     ]);
   }
 
-  // วาด/อัปเดตหน้าตาปุ่มส่ง: ready (ของครบตรงออเดอร์) = gradient ชมพู→ม่วงสด + glow ชัด,
+  // วาด/อัปเดตหน้าตาปุ่มส่ง: ready (ของครบตรงออเดอร์) = gradient เหลืองนีออน→เหลืองมะกอก + glow ชัด,
   // not ready = พื้น panelAlt เข้มๆ ขอบจางๆ — เรียกตอนสร้างครั้งแรกและทุกครั้งที่ updateBoxDisplay()
   drawSendButtonGraphic(ready) {
     const w = this.sendButtonW, h = this.sendButtonH, x = W / 2, y = this.sendButtonY;
     this.sendButtonGraphic.clear();
     if (ready) {
-      this.sendButtonGraphic.fillGradientStyle(THEME.accentPink, THEME.accentPink, THEME.accentPurple, THEME.accentPurple, 1);
+      this.sendButtonGraphic.fillGradientStyle(THEME.accentNeon, THEME.accentNeon, THEME.accentNeonDark, THEME.accentNeonDark, 1);
     } else {
       this.sendButtonGraphic.fillStyle(THEME.panelAlt, 1);
     }
     this.sendButtonGraphic.fillRoundedRect(x - w / 2, y - h / 2, w, h, h / 2);
-    this.sendButtonGraphic.lineStyle(2, ready ? THEME.accentPink : THEME.panelBorder, ready ? 0.9 : 0.35);
+    this.sendButtonGraphic.lineStyle(2, ready ? THEME.accentNeon : THEME.panelBorder, ready ? 0.9 : 0.35);
     this.sendButtonGraphic.strokeRoundedRect(x - w / 2, y - h / 2, w, h, h / 2);
     this.sendButtonGlow.setAlpha(ready ? 0.32 : 0.08);
   }
@@ -413,11 +484,11 @@ class GameScene extends Phaser.Scene {
   // (custom Rectangle hitArea บน Container บางครั้งพลาดคลิกบน Desktop/บางเบราว์เซอร์)
   createProductButton(x, y, key) {
     const container = this.add.container(x, y);
-    // Theme Skin Patch: dark circular pad + ขอบม่วง/ชมพูบางๆ (จาก panel/panelBorder สีใหม่)
+    // dark circular pad + ขอบเหลืองหม่นบางๆ (จาก panel/panelBorder ธีมแบรนด์)
     const bg = this.add.circle(0, 0, 38, THEME.panel).setStrokeStyle(2, THEME.panelBorder, 0.8);
     container.add(bg);
     // ring เรืองแสง (ซ่อนไว้ก่อน) ใช้ flash ตอนแตะให้ดูเป็น neon ring แบบ active feedback (req #9)
-    const ring = this.add.circle(0, 0, 38, 0x000000, 0).setStrokeStyle(3, THEME.accentPink, 1).setAlpha(0);
+    const ring = this.add.circle(0, 0, 38, 0x000000, 0).setStrokeStyle(3, THEME.accentNeon, 1).setAlpha(0);
     container.add(ring);
     const g = this.add.graphics();
     container.add(g);
@@ -444,24 +515,23 @@ class GameScene extends Phaser.Scene {
     return container;
   }
 
-  // วาดรูปทรงสินค้าตามสเปก — รีสกินเป็นขวด family เดียวกันทั้งหมด (bottle สำหรับ A-E, bottleStout
-  // สำหรับ F/Bazzi ที่อวบ/เตี้ยกว่าเล็กน้อยแต่ยังเป็นขวด family เดียวกัน) ทุก shape ใช้ Graphics API
-  // ล้วนๆ ไม่มีโลโก้/รูปภาพจริง ขนาดทุกส่วนคูณด้วย size เสมอ เพื่อให้ย่อ/ขยายตามไอคอน
-  // (ปุ่มสินค้า/ชิปในการ์ด/ป้ายในกล่อง) ได้โดยไม่เพี้ยนรูปทรง
-  // ถ้าส่ง container มาด้วย จะวาด label product.shortLabel ทับบน label สีขาวหน้าขวดให้เลย — v0.1.8:
-  // ใช้ shortLabel สม่ำเสมอทุกที่ (ปุ่ม inventory, การ์ดหลัก, การ์ดคิว, ป้ายในกล่อง) ไม่ใช้ label เต็ม
-  // บนหน้าขวดแล้ว (ชื่อรสแบบเต็มไปอยู่ใต้ปุ่ม inventory แทน) วัดความกว้างจริงแล้วลดฟอนต์อัตโนมัติถ้าล้น
+  // วาดรูปทรงสินค้าตามสเปก — 2 หมวด: ขวดไซรัป (bottle/bottleStout) และแหวนเงินเพชร SM
+  // (ringRound/ringSquare/ringPear — วงแหวนเงินเหมือนกัน แยกรุ่นด้วยรูปทรงเพชร กลม/เหลี่ยม/หยดน้ำ)
+  // ทุก shape ใช้ Graphics API ล้วนๆ ไม่มีโลโก้/รูปภาพจริง ขนาดทุกส่วนคูณด้วย size เสมอ
+  // เพื่อให้ย่อ/ขยายตามไอคอน (ปุ่มสินค้า/ชิปในการ์ด/ป้ายในกล่อง) ได้โดยไม่เพี้ยนรูปทรง
+  // ถ้าส่ง container มาด้วย จะวาด label product.shortLabel ทับบนป้ายสีขาวให้เลย (ขวด = ป้ายหน้าขวด,
+  // แหวน = ป้ายแท็กใต้วงแหวน) วัดความกว้างจริงแล้วลดฟอนต์อัตโนมัติถ้าล้น
   // ผู้เรียกต้อง add ชิ้นส่วนพื้นหลัง (เช่น chipBg) เข้า container ก่อนเรียกเสมอ ไม่งั้น label จะถูกบัง
   drawProductShape(g, key, x, y, size, container) {
     const product = PRODUCTS[key];
     g.clear();
     g.fillStyle(product.color, 1);
     let labelY = y + size * 0.16;
-    let labelW = size * 0.64; // ความกว้าง label สีขาวหน้าขวด (ตรงกับ fillRoundedRect ด้านล่าง)
+    let labelW = size * 0.64; // ความกว้าง label สีขาว (ตรงกับป้ายที่วาดในแต่ละ shape ด้านล่าง)
     let baseFontSize = Math.max(7, Math.round(size * 0.4));
 
     if (product.shape === 'bottleStout') {
-      // F (Bazzi องุ่น): family เดียวกันแต่ตัวอวบกว่า/เตี้ยกว่าเล็กน้อย ให้แยกแบรนด์ได้ในแวบแรก
+      // C (Bazzi องุ่น): family เดียวกันแต่ตัวอวบกว่า/เตี้ยกว่าเล็กน้อย ให้แยกแบรนด์ได้ในแวบแรก
       g.fillRoundedRect(x - size * 0.55, y - size * 0.15, size * 1.1, size * 0.85, size * 0.3);
       g.fillRect(x - size * 0.2, y - size * 0.55, size * 0.4, size * 0.4); // คอขวดเตี้ย
       g.fillStyle(0xffffff, 1);
@@ -470,8 +540,39 @@ class GameScene extends Phaser.Scene {
       labelY = y + size * 0.25;
       labelW = size * 0.8;
       baseFontSize = Math.max(6, Math.round(size * 0.32));
+    } else if (product.shape.startsWith('ring')) {
+      // D/E/F (แหวนเงิน SM01-03): วงแหวนเงิน + เพชรด้านบน (รูปทรงต่างกันตามรุ่น) + ป้ายแท็กขาวใต้แหวน
+      // ตัววงแหวน: วาดเป็นวงกลมเส้นหนา (annulus) จุดกึ่งกลางเยื้องลงเล็กน้อยให้เพชรมีที่ด้านบน
+      g.lineStyle(Math.max(2, size * 0.2), product.color, 1);
+      g.strokeCircle(x, y + size * 0.05, size * 0.42);
+      // หนามเตย (prong) เชื่อมวงแหวนกับเพชร
+      g.fillStyle(product.color, 1);
+      g.fillRect(x - size * 0.12, y - size * 0.5, size * 0.24, size * 0.18);
+      // เพชร: สีขาวอมฟ้าเรืองๆ เหมือนกันทุกรุ่น แต่รูปทรงต่างกัน (จุดขายของแต่ละรุ่น)
+      g.fillStyle(0xeef4ff, 1);
+      if (product.shape === 'ringRound') {
+        // SM01 เพชรกลม (round brilliant)
+        g.fillCircle(x, y - size * 0.62, size * 0.24);
+      } else if (product.shape === 'ringSquare') {
+        // SM02 เพชรเหลี่ยม (princess cut)
+        g.fillRect(x - size * 0.2, y - size * 0.82, size * 0.4, size * 0.4);
+      } else {
+        // SM03 เพชรหยดน้ำ (pear) — สามเหลี่ยมปลายชี้ลงหาวงแหวน
+        g.beginPath();
+        g.moveTo(x - size * 0.24, y - size * 0.85);
+        g.lineTo(x + size * 0.24, y - size * 0.85);
+        g.lineTo(x, y - size * 0.42);
+        g.closePath();
+        g.fillPath();
+      }
+      // ป้ายแท็กสีขาวใต้วงแหวน (ตำแหน่งเดียวกับ label หน้าขวดของฝั่งไซรัป ให้อ่าน SM01-03 ได้ชัด)
+      g.fillStyle(0xffffff, 1);
+      g.fillRoundedRect(x - size * 0.5, y + size * 0.5, size * 1.0, size * 0.42, size * 0.06);
+      labelY = y + size * 0.71;
+      labelW = size * 1.0;
+      baseFontSize = Math.max(6, Math.round(size * 0.32));
     } else {
-      // A-E: ขวดไซรัป family หลัก — ตัวขวดทรงรี + คอคอด + ฝาขาว + label ขาวหน้าขวด
+      // A/B: ขวดไซรัป family หลัก — ตัวขวดทรงรี + คอคอด + ฝาขาว + label ขาวหน้าขวด
       g.fillRoundedRect(x - size * 0.45, y - size * 0.3, size * 0.9, size * 1.1, size * 0.25);
       g.fillRect(x - size * 0.18, y - size * 0.75, size * 0.36, size * 0.5); // คอขวด
       g.fillStyle(0xffffff, 1);
@@ -511,13 +612,13 @@ class GameScene extends Phaser.Scene {
   }
 
   // "ป้าย" (pill) แสดงสินค้าในกล่องแพ็ก: ทรงโค้งมน — Theme Skin Patch: เปลี่ยนจากสีครีม/น้ำตาลไม้เดิม
-  // เป็น dark panel + ขอบม่วงนีออนบางๆ เข้าธีมเดียวกับกล่องออเดอร์ ไอคอน+จำนวนเรียงแนวนอนเหมือนเดิม
+  // เป็น dark panel + ขอบเหลืองมะกอกบางๆ เข้าธีมเดียวกับกล่องออเดอร์ ไอคอน+จำนวนเรียงแนวนอนเหมือนเดิม
   // ตั้งใจให้หน้าตาต่างจากชิปในการ์ดออเดอร์ (ที่เป็นกล่องเหลี่ยมสีกรมท่า ไอคอนบน-เลขล่าง)
   // เพื่อให้ผู้เล่นแยกแยะด้วยตาได้ทันทีว่านี่คือ "ของที่แพ็กแล้ว" ไม่ใช่ "สิ่งที่ต้องส่ง"
   createBoxItemPill(container, key, count, x, y, onTap) {
     const g = this.add.graphics();
     g.fillStyle(THEME.panelAlt, 1);
-    g.lineStyle(2, THEME.accentPurple, 0.8);
+    g.lineStyle(2, THEME.accentNeonDark, 0.8);
     g.fillRoundedRect(x - PILL_W / 2, y - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2);
     g.strokeRoundedRect(x - PILL_W / 2, y - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2);
     container.add(g);
@@ -656,10 +757,12 @@ class GameScene extends Phaser.Scene {
   }
 
   // สุ่มเนื้อออเดอร์สำหรับตอนคอมโบเซิร์จ: ประเภทสินค้า 1-3 ชนิด และจำนวน 1-3 ต่อชนิด
-  // (v0.1.1: ลดช่วงสุ่มลงจาก 1-5/1-5 เดิม เพื่อให้ surge ไม่หนักเกินไปสำหรับ playtest 60 วินาที)
+  // v0.3.0: สุ่ม "หมวด" ก่อน (ไซรัป หรือ แหวน อย่างละครึ่ง) แล้วค่อยสุ่มชนิดจากหมวดนั้นเท่านั้น
+  // เพื่อรับประกันว่าออเดอร์ทุกใบเป็นหมวดเดียวล้วนเสมอ ไม่มีไซรัปปนแหวนในใบเดียว (สเปกแบรนด์)
   generateRandomOrderItems() {
+    const categoryKeys = Math.random() < 0.5 ? SYRUP_KEYS : RING_KEYS;
     const typeCount = Phaser.Math.Between(1, 3);
-    const keys = Phaser.Utils.Array.Shuffle(PRODUCT_KEYS.slice()).slice(0, typeCount);
+    const keys = Phaser.Utils.Array.Shuffle(categoryKeys.slice()).slice(0, typeCount);
     const items = {};
     keys.forEach(k => { items[k] = Phaser.Math.Between(1, 3); });
     return items;
@@ -695,9 +798,9 @@ class GameScene extends Phaser.Scene {
     const itemEntries = allEntries.slice(0, maxTypes);
     const hiddenTypeCount = allEntries.length - itemEntries.length;
 
-    // ไฮไลต์การ์ดหลัก: เรืองแสง (glow) pulse เบาๆ สีชมพูนีออน ให้เด่นกว่าแค่ขอบ (Theme Skin Patch)
+    // ไฮไลต์การ์ดหลัก: เรืองแสง (glow) pulse เบาๆ สีเหลืองนีออน ให้เด่นกว่าแค่ขอบ
     if (isMain) {
-      const glow = this.add.rectangle(0, 0, cfg.cardW + 14, cfg.cardH + 14, THEME.accentPink, 0.25);
+      const glow = this.add.rectangle(0, 0, cfg.cardW + 14, cfg.cardH + 14, THEME.accentNeon, 0.25);
       container.add(glow);
       this.activeGlows.push(glow);
       this.tweens.add({ targets: glow, alpha: 0.06, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
@@ -708,9 +811,9 @@ class GameScene extends Phaser.Scene {
       // การ์ดหลัก: วาดด้วย Graphics ให้ได้มุมโค้งชัดขึ้น + ขอบนีออนชมพูสด (Rectangle ปกติมุมเหลี่ยม
       // เท่านั้น) ส่วน hit area คลิกจริงทำให้โปร่งใสซ้อนทับขนาด/ตำแหน่งเดิมไว้ ไม่กระทบ logic การคลิก
       const cardGraphic = this.add.graphics();
-      cardGraphic.fillStyle(THEME.bazziAccentDark, 1);
+      cardGraphic.fillStyle(THEME.mainCardBg, 1);
       cardGraphic.fillRoundedRect(-cfg.cardW / 2, -cfg.cardH / 2, cfg.cardW, cfg.cardH, 18);
-      cardGraphic.lineStyle(3, THEME.accentPink, 1);
+      cardGraphic.lineStyle(3, THEME.accentNeon, 1);
       cardGraphic.strokeRoundedRect(-cfg.cardW / 2, -cfg.cardH / 2, cfg.cardW, cfg.cardH, 18);
       container.add(cardGraphic);
       bg = this.add.rectangle(0, 0, cfg.cardW, cfg.cardH, 0xffffff, 0).setInteractive({ useHandCursor: true });
@@ -903,7 +1006,8 @@ class GameScene extends Phaser.Scene {
     // เช็คว่ากล่องตรงกับออเดอร์ที่เลือกหรือไม่ -> เปลี่ยนหน้าตาปุ่มส่ง (gradient สดตอนพร้อมส่ง)
     const matches = this.boxMatchesSelectedOrder();
     this.drawSendButtonGraphic(matches);
-    this.sendButtonText.setColor(matches ? THEME.textPrimary : THEME.textSecondary);
+    // พร้อมส่ง = ปุ่มเหลืองนีออน จึงใช้ตัวหนังสือดำแบบโลโก้ WAAN KUEN TA (อ่านชัดกว่าขาวบนเหลือง)
+    this.sendButtonText.setColor(matches ? THEME.ctaText : THEME.textSecondary);
   }
 
   boxMatchesSelectedOrder() {
@@ -984,7 +1088,7 @@ class GameScene extends Phaser.Scene {
     const m = Math.floor(this.timeLeft / 60).toString().padStart(2, '0');
     const s = (this.timeLeft % 60).toString().padStart(2, '0');
     this.timerText.setText(`${m}:${s}`);
-    // ครึ่งหลังของรอบ: หลอดเวลาวิ่งไวขึ้น เลยให้สีตัวจับเวลาเตือนเป็นสีแดง/ชมพูนีออน
+    // ครึ่งหลังของรอบ: หลอดเวลาวิ่งไวขึ้น เลยให้สีตัวจับเวลาเตือนเป็นสีแดงนีออน
     this.timerText.setColor(this.timeLeft <= TIME_LIMIT_SECONDS / 2 ? THEME.dangerText : THEME.textPrimary);
 
     // v0.2.0: 10 วินาทีสุดท้าย — เสียงติ๊กเร่งจังหวะ + ตัวเลขเวลาเด้งทุกวินาที สร้างความเร้าใจช่วงท้าย
@@ -1076,8 +1180,8 @@ class GameScene extends Phaser.Scene {
     const panel = this.add.rectangle(W / 2, H / 2, 320, 480, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(201);
 
     const baseY = H / 2 - 210;
-    // Theme Skin Patch: title หน้า Game Over ใช้ mood เดียวกับ start screen (ชมพูนีออน)
-    const title = this.add.text(W / 2, baseY, 'หมดเวลา!', { fontSize: '28px', color: THEME.accentPinkText, fontStyle: 'bold', fontFamily: FONT })
+    // title หน้า Game Over ใช้ mood เดียวกับ start screen (เหลืองนีออนแบรนด์)
+    const title = this.add.text(W / 2, baseY, 'หมดเวลา!', { fontSize: '28px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
       .setOrigin(0.5).setDepth(202).setShadow(0, 2, '#000000', 4, false, true);
 
     // แจกแจงสถิติ: คะแนนก่อนบวกโบนัส + โบนัสคอมโบ + คอมโบสูงสุด + ส่งสำเร็จ + หมดเวลา (req #6)
@@ -1114,14 +1218,14 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // CTA หลักเด่น: ชมพูนีออน/ม่วงแทนเขียวเดิม ให้เข้าธีมเดียวกับปุ่มเริ่มเกม
-    const playAgainBtn = this.add.rectangle(W / 2, baseY + 330, 220, 56, THEME.accentPink).setStrokeStyle(3, THEME.accentPurple).setInteractive({ useHandCursor: true }).setDepth(202);
-    this.add.text(W / 2, baseY + 330, 'เล่นใหม่ 🔄', { fontSize: '20px', color: THEME.textPrimary, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    // CTA หลักเด่น: เหลืองนีออน + ตัวหนังสือดำ ให้เข้าธีมเดียวกับปุ่มเริ่มเกม
+    const playAgainBtn = this.add.rectangle(W / 2, baseY + 330, 220, 56, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(202);
+    this.add.text(W / 2, baseY + 330, 'เล่นใหม่ 🔄', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
     playAgainBtn.on('pointerdown', () => this.scene.restart());
 
     // v0.2.0: ปุ่มแชร์คะแนน — ชวนเพื่อนมาแข่งผ่านลิงก์เดียวกับที่เปิดเกมอยู่ (ไม่มีระบบออนไลน์/backend
     // ใช้ Web Share API ของเบราว์เซอร์ ถ้าไม่มี (เช่น desktop) fallback เป็นคัดลอกข้อความลงคลิปบอร์ด)
-    const shareBtn = this.add.rectangle(W / 2, baseY + 392, 220, 48, THEME.panelAlt).setStrokeStyle(2, THEME.accentBlue, 0.8).setInteractive({ useHandCursor: true }).setDepth(202);
+    const shareBtn = this.add.rectangle(W / 2, baseY + 392, 220, 48, THEME.panelAlt).setStrokeStyle(2, THEME.accentSilver, 0.8).setInteractive({ useHandCursor: true }).setDepth(202);
     const shareBtnText = this.add.text(W / 2, baseY + 392, 'แชร์คะแนน 📤', { fontSize: '17px', color: THEME.textPrimary, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
     shareBtn.on('pointerdown', () => {
       const shareText = `ฉันทำได้ ${this.score} แต้ม (${'⭐'.repeat(stars) || 'ยังไม่ได้ดาว'}) ใน Syrup Rush! มาลองแข่งกัน: ${location.href}`;
@@ -1156,6 +1260,8 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+// expose ไว้บน window สำหรับ debug/ทดสอบผ่าน DevTools console (ไม่มีผลกับ gameplay)
+window.syrupRushGame = game;
 
 // ----------------- บังคับขนาด/ตำแหน่ง canvas เองด้วย JS (ไม่พึ่ง Phaser Scale Manager) -----------------
 // เหตุผล: Scale Manager ของ Phaser (FIT/ENVELOP) คำนวณพลาดจังหวะบน iOS Safari ตอน toolbar

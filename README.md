@@ -6,9 +6,11 @@
 
 ## เล่นออนไลน์
 
+🎮 **เล่นเลย: https://kengkit.github.io/syrup-rush/**
+
 เกมเป็น static page 100% ไม่มี backend — ผู้เล่นแต่ละคนรันเกมในเครื่องตัวเองทั้งหมด รองรับผู้เล่นเข้าพร้อมกัน 20 คนขึ้นไปสบายๆ (จำกัดแค่แบนด์วิดท์ของโฮสต์ ซึ่งไฟล์เกมมีขนาดเพียง ~75KB)
 
-Deploy ผ่าน GitHub Pages จาก repo นี้ (branch `main`, root)
+Deploy ผ่าน GitHub Pages (branch `main`, root)
 
 ## วิธีเล่น
 

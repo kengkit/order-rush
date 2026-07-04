@@ -63,18 +63,20 @@ const HIGH_SCORE_KEY = 'syrupRushHighScore';
 
 // Order Board: มีการ์ดหลัก (ออเดอร์ลูกค้าที่กำลังแพ็ก) ขนาดคงที่ใหญ่ 1 ใบ + คิวจัดส่งขนาดเล็กกว่า
 // สูงสุด 3 ใบ ไม่มีการไล่ขนาดลงอีกต่อไป เพื่อไม่ให้ไอคอน/ตัวอักษรเล็กเกินอ่านยากไม่ว่าจะมีออเดอร์
-// พร้อมกันกี่ใบก็ตาม (ดู renderOrders/renderOrderCard) — v0.1.7: ขยายขนาดทั้งสองการ์ดให้คมชัดขึ้น
-const SELECTED_ORDER_CARD_CFG = { cols: 4, cardW: 320, cardH: 118, chipW: 66, chipH: 66, chipGap: 8, pad: 12, iconSize: 19, fontSize: '15px' };
-const QUEUE_CARD_CFG = { cols: 2, cardW: 116, cardH: 72, chipW: 40, chipH: 38, chipGap: 5, pad: 7, iconSize: 11, fontSize: '11px' };
+// พร้อมกันกี่ใบก็ตาม (ดู renderOrders/renderOrderCard)
+// v0.3.1 (Proportion Redesign): ขยาย Order Board ขึ้นอีกขั้นตาม feedback ว่าบนมือถือ/แท็บเล็ต
+// ยังต้องเพ่งมอง — การ์ดหลัก 340x140 ชิป 76px ไอคอน 23px, การ์ดคิว 116x84 ชิป 46px ไอคอน 13px
+// โดยหดโซนกลาง/ล่าง (กล่องแพ็กเตี้ยลง, ปุ่มสินค้าเล็กลงเล็กน้อย) มาชดเชยพื้นที่ที่เพิ่มให้ด้านบน
+const SELECTED_ORDER_CARD_CFG = { cols: 4, cardW: 340, cardH: 140, chipW: 76, chipH: 76, chipGap: 8, pad: 8, iconSize: 23, fontSize: '17px' };
+const QUEUE_CARD_CFG = { cols: 2, cardW: 116, cardH: 84, chipW: 46, chipH: 44, chipGap: 5, pad: 7, iconSize: 13, fontSize: '12px' };
 
-// ตำแหน่ง y เริ่มต้นของเส้นแบ่งโซนหลังพื้นที่ออเดอร์ (ตามดีไซน์เดิม) ใช้เป็นจุดอ้างอิงคำนวณว่า
-// พื้นที่ออเดอร์ "ล้น" ไปแค่ไหน แล้วต้องดันกล่องแพ็ก/ปุ่มส่ง/ของในคลังลงมาเพิ่มเท่าไหร่ (relayoutBelowOrders)
-// v0.1.8: ขยับลงจาก 0.3 เป็น 0.39 เพื่อให้พื้นที่ Top Order Board ใหญ่ขึ้นตามการ์ดที่ขยายขึ้น
-const DEFAULT_DIVIDER1_Y = H * 0.39;
-// ดันลงมาได้ไม่เกินนี้ (คำนวณจากพื้นที่ว่างจริงด้านล่างของในคลัง ก่อนที่ปุ่มแถวที่ 2 จะตกขอบจอ 844px)
-// ปกติไม่ใช้แล้วเพราะ Order Board พอดีกับ DEFAULT_DIVIDER1_Y ใหม่อยู่แล้ว เก็บไว้เป็น safety net เผื่อ
-// กรณีจอเล็กผิดปกติเท่านั้น
-const ORDERS_MAX_DELTA = 36;
+// ตำแหน่ง y เริ่มต้นของเส้นแบ่งโซนหลังพื้นที่ออเดอร์ ใช้เป็นจุดอ้างอิงคำนวณว่าพื้นที่ออเดอร์ "ล้น"
+// ไปแค่ไหน แล้วต้องดันกล่องแพ็ก/ปุ่มส่ง/ของในคลังลงมาเพิ่มเท่าไหร่ (relayoutBelowOrders)
+// v0.3.1: ขยับลงเป็น 0.40 รับ Order Board ที่ขยายขึ้น (บอร์ดสูงจริง ~335 ≤ 337.6 → delta ปกติ 0)
+const DEFAULT_DIVIDER1_Y = H * 0.40;
+// ดันลงมาได้ไม่เกินนี้ (คำนวณจากพื้นที่ว่างจริงด้านล่างของในคลัง ก่อนที่ป้ายชื่อใต้ปุ่มแถวล่าง
+// (y≈811) จะตกขอบจอ 844px) ปกติไม่ใช้เพราะบอร์ดพอดีกับ DEFAULT_DIVIDER1_Y อยู่แล้ว — safety net เท่านั้น
+const ORDERS_MAX_DELTA = 30;
 
 // ขนาด "ป้าย" (pill) แสดงสินค้าในกล่องแพ็ก: 2 ป้าย/แถว พอดีกับความกว้างกล่อง 160px
 // (8 pad + 68 + 8 gap + 68 + 8 pad = 160) สูงสุด 3 แถว พอดีกับความสูงกล่อง 110px
@@ -240,9 +242,8 @@ class GameScene extends Phaser.Scene {
         const glow = this.add.circle(spot.x, spot.y, spot.r, spot.c, 0.07).setDepth(-9);
       });
 
-    // ลายน้ำโลโก้ทั้งสองแบรนด์จางๆ บนพื้นหลัง (ตกแต่งตามสเปก ไม่แย่งความสนใจจาก UI เกม)
-    this.drawWaanKuenTaLogo(W - 78, H - 150, 70).setDepth(-8).setAlpha(0.07);
-    this.drawSMLogo(78, H * 0.52, 55).setDepth(-8).setAlpha(0.09);
+    // (v0.3.1: ถอดลายน้ำโลโก้จางๆ บนพื้นหลังออก เพราะเปลี่ยนเป็นโลโก้เต็มสีขนาบข้างกล่องแพ็ก
+    // ที่มองเห็นชัดขณะเล่นแทน — ดู buildUI ถ้าวางซ้อนสองชั้นจะรกและทับตำแหน่งกัน)
   }
 
   // ไอคอนนาฬิกาเล็กๆ วาดเอง (วงกลม + เข็ม 2 เข็ม) ใช้แทน emoji ⏱ ในแคปซูล timer ของ HUD
@@ -374,7 +375,7 @@ class GameScene extends Phaser.Scene {
     // ใช้ setDepth(-1) ให้แน่ใจว่าอยู่หลังสุดเสมอไม่ว่าจะสร้างก่อน/หลังอะไร
     // v0.1.8: ขยายลงไปถึง y=300 ให้พอดีกับการ์ดที่ใหญ่ขึ้น (ดู renderOrders + DEFAULT_DIVIDER1_Y)
     // ขอบเหลืองนีออนบางๆ ตามธีมแบรนด์ WAAN KUEN TA
-    const topBoardPanelTop = 10, topBoardPanelBottom = 300;
+    const topBoardPanelTop = 10, topBoardPanelBottom = 330;
     this.topBoardPanel = this.add.rectangle(W / 2, (topBoardPanelTop + topBoardPanelBottom) / 2, W - 20, topBoardPanelBottom - topBoardPanelTop, THEME.boardPanel, 0.42)
       .setStrokeStyle(2, THEME.accentNeon, 0.35)
       .setDepth(-1);
@@ -414,27 +415,33 @@ class GameScene extends Phaser.Scene {
 
     // ---- Zone 2: Action (กล่องแพ็ก + ปุ่มส่ง) ----
     // รวมองค์ประกอบของ "กล่อง" ไว้ใน container เดียว เพื่อให้ slide in/out ได้ทั้งชุดตอนส่งของ
-    const boxY = H * 0.45 + 15;
+    // v0.3.1: ขยับลง + เตี้ยลง (110→100) เพื่อคืนพื้นที่ให้ Order Board ด้านบนที่ขยายขึ้น
+    const boxY = H * 0.45 + 45;
     this.boxY = boxY;
     this.boxContainer = this.add.container(W / 2, boxY);
-    // กล่องสีน้ำตาลทั้งกล่อง = ปุ่มยกเลิก/ล้างของที่แพ็กไว้ (แทนปุ่ม "ล้าง" แยก)
+    // กล่องทั้งกล่อง = ปุ่มยกเลิก/ล้างของที่แพ็กไว้ (แทนปุ่ม "ล้าง" แยก)
     // กล่องออเดอร์: dark premium panel + ขอบเหลืองมะกอกบางๆ ตามธีมแบรนด์
-    // (ฟังก์ชันเดิมทุกอย่าง: แตะเพื่อยกเลิก/ล้างกล่อง)
-    this.boxGraphic = this.add.rectangle(0, 0, 160, 110, THEME.panelAlt).setStrokeStyle(2, THEME.accentNeonDark, 0.8).setInteractive({ useHandCursor: true });
+    this.boxGraphic = this.add.rectangle(0, 0, 160, 100, THEME.panelAlt).setStrokeStyle(2, THEME.accentNeonDark, 0.8).setInteractive({ useHandCursor: true });
     this.boxGraphic.on('pointerdown', () => this.clearBox());
-    this.boxLabel = this.add.text(0, -70, '📦 กล่องออเดอร์ (แตะเพื่อยกเลิก)', { fontSize: '13px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
+    this.boxLabel = this.add.text(0, -66, '📦 กล่องออเดอร์ (แตะเพื่อยกเลิก)', { fontSize: '13px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
     this.boxItemsContainer = this.add.container(0, 0); // เก็บไอคอน shape ของของในกล่อง (แทน emoji text)
     this.boxEmptyText = this.add.text(0, 0, '(ว่าง)', { fontSize: '16px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
 
     this.boxContainer.add([this.boxGraphic, this.boxLabel, this.boxItemsContainer, this.boxEmptyText]);
 
+    // โลโก้ทั้งสองแบรนด์ขนาบซ้าย-ขวาของกล่องแพ็ก มองเห็นตลอดขณะเล่น (พื้นที่สองข้างกล่องว่างอยู่แล้ว)
+    // อยู่ใน belowOrdersContainer เพื่อให้ขยับตาม relayout เหมือนของอื่นในโซนกลาง
+    const wktGameLogo = this.drawWaanKuenTaLogo(52, boxY, 30);
+    const smGameLogo = this.drawSMLogo(W - 52, boxY, 32);
+
     // ปุ่มส่ง: gradient เหลืองนีออน→เหลืองมะกอก + glow รอบปุ่มตอนของครบพร้อมส่ง — วาดด้วย
     // Graphics เพราะ Phaser Rectangle ปกติไม่รองรับ gradient fill/มุมโค้ง ส่วน hit area คลิกจริง
     // (this.sendButton) ทำให้โปร่งใสซ้อนทับตำแหน่ง/ขนาดเดิมไว้ ฟังก์ชัน trySendBox() ไม่เปลี่ยน
+    // v0.3.1: ย่อเล็กน้อย (220x56 → 210x52) คืนพื้นที่ให้ด้านบน
     const sendButtonY = H * 0.62 + 12;
     this.sendButtonY = sendButtonY;
-    this.sendButtonW = 220;
-    this.sendButtonH = 56;
+    this.sendButtonW = 210;
+    this.sendButtonH = 52;
     this.sendButtonGlow = this.add.rectangle(W / 2, sendButtonY, this.sendButtonW + 24, this.sendButtonH + 24, THEME.accentNeon, 0.08);
     this.sendButtonGraphic = this.add.graphics();
     this.drawSendButtonGraphic(false); // เริ่มต้นที่ state "ยังไม่พร้อมส่ง"
@@ -457,7 +464,7 @@ class GameScene extends Phaser.Scene {
 
     // รวมทุกอย่างเข้า belowOrdersContainer (ลำดับการ add ไม่กระทบตำแหน่ง เพราะแต่ละชิ้นมี x/y สัมบูรณ์ของตัวเองอยู่แล้ว)
     this.belowOrdersContainer.add([
-      divider1, divider2, this.boxContainer,
+      divider1, divider2, this.boxContainer, wktGameLogo, smGameLogo,
       this.sendButtonGlow, this.sendButtonGraphic, this.sendButton, this.sendButtonText,
       ...Object.values(this.productButtons)
     ]);
@@ -485,21 +492,22 @@ class GameScene extends Phaser.Scene {
   createProductButton(x, y, key) {
     const container = this.add.container(x, y);
     // dark circular pad + ขอบเหลืองหม่นบางๆ (จาก panel/panelBorder ธีมแบรนด์)
-    const bg = this.add.circle(0, 0, 38, THEME.panel).setStrokeStyle(2, THEME.panelBorder, 0.8);
+    // v0.3.1: ย่อปุ่มลงเล็กน้อย (r38→35) คืนพื้นที่ให้ Order Board — hit zone คงเดิม 84px กดง่ายเหมือนเดิม
+    const bg = this.add.circle(0, 0, 35, THEME.panel).setStrokeStyle(2, THEME.panelBorder, 0.8);
     container.add(bg);
     // ring เรืองแสง (ซ่อนไว้ก่อน) ใช้ flash ตอนแตะให้ดูเป็น neon ring แบบ active feedback (req #9)
-    const ring = this.add.circle(0, 0, 38, 0x000000, 0).setStrokeStyle(3, THEME.accentNeon, 1).setAlpha(0);
+    const ring = this.add.circle(0, 0, 35, 0x000000, 0).setStrokeStyle(3, THEME.accentNeon, 1).setAlpha(0);
     container.add(ring);
     const g = this.add.graphics();
     container.add(g);
     // ส่ง container เข้าไปด้วยให้ drawProductShape แนบ label shortLabel เข้า container ให้เลย
     // (ต้อง add bg/g เข้า container ก่อนเรียกเสมอ ไม่งั้น label จะถูกองค์ประกอบที่ add ทีหลังบังทับ)
-    this.drawProductShape(g, key, 0, 0, 26, container);
+    this.drawProductShape(g, key, 0, 0, 24, container);
     const hitZone = this.add.zone(0, 0, 84, 84).setInteractive({ useHandCursor: true });
     container.add(hitZone);
 
     // ชื่อรสแบบสั้นใต้ไอคอน (req #7) ให้ผู้เล่นจำง่ายว่าปุ่มไหนคือรสไหน
-    const nameLabel = this.add.text(0, 46, PRODUCTS[key].name, { fontSize: '11px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
+    const nameLabel = this.add.text(0, 43, PRODUCTS[key].name, { fontSize: '11px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
     container.add(nameLabel);
 
     hitZone.on('pointerdown', () => this.packItem(key));
@@ -889,19 +897,19 @@ class GameScene extends Phaser.Scene {
     const visibleQueue = queueOrders.slice(0, 3); // โชว์คิวถัดไปสูงสุด 3 ใบ ที่เหลือพับเป็น badge "+N"
     const extraCount = queueOrders.length - visibleQueue.length;
 
-    // v0.1.8: ขยับ/ขยาย spacing ใหม่อีกครั้งให้การ์ดใหญ่ขึ้นตาม Top Board ที่ขยายแล้วยังไม่ชน label
-    const mainLabel = this.add.text(W / 2, 52, '📦 ออเดอร์ลูกค้า', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
+    // v0.3.1 (Proportion Redesign): จัดตำแหน่งใหม่รับการ์ดที่ใหญ่ขึ้น — label 58, การ์ดหลัก 140
+    // (สูง 140 → กิน 70..210), label คิว 222, การ์ดคิว 278 (สูง 84 → กิน 236..320) ไม่ชนกันทุกคู่
+    const mainLabel = this.add.text(W / 2, 58, '📦 ออเดอร์ลูกค้า', { fontSize: '14px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
     this.ordersContainer.add(mainLabel);
-    this.renderOrderCard(mainOrder, SELECTED_ORDER_CARD_CFG, W / 2, 122, true);
+    this.renderOrderCard(mainOrder, SELECTED_ORDER_CARD_CFG, W / 2, 140, true);
 
     if (visibleQueue.length > 0) {
-      // ขยับขึ้นเล็กน้อยจาก 200 เป็น 196 กันชนกับขอบบนการ์ดคิว (queueY 242 - cardH/2 36 = 206)
-      const queueLabel = this.add.text(W / 2, 196, '🚚 คิวจัดส่ง', { fontSize: '12px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
+      const queueLabel = this.add.text(W / 2, 222, '🚚 คิวจัดส่ง', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
       this.ordersContainer.add(queueLabel);
 
       const cfg = QUEUE_CARD_CFG;
-      const gap = 10;
-      const queueY = 242;
+      const gap = 8; // แคบลงจาก 10 เพราะการ์ดคิวกว้างขึ้น (3 ใบ + gap ต้องไม่ล้นจอ 390px)
+      const queueY = 278;
       const totalW = visibleQueue.length * cfg.cardW + (visibleQueue.length - 1) * gap;
       const startX = W / 2 - totalW / 2 + cfg.cardW / 2;
 
@@ -925,9 +933,9 @@ class GameScene extends Phaser.Scene {
     this.updatePatienceBars();
 
     // ความสูงรวมของ Order Board คงที่เสมอ (ไม่ขึ้นกับจำนวนออเดอร์อีกต่อไป) ใช้ดันกล่องแพ็ก/ปุ่มส่ง/
-    // ของในคลังลงมาเท่าที่จำเป็นจริงๆ — v0.1.8: ค่านี้ (~293) พอดีอยู่แล้วกับ DEFAULT_DIVIDER1_Y ใหม่
-    // (H*0.39 ≈ 329) จึง needed ปกติเป็น 0, relayoutBelowOrders ทำหน้าที่เป็น safety net เท่านั้น
-    const totalOrdersHeight = (visibleQueue.length > 0 ? 242 + QUEUE_CARD_CFG.cardH / 2 : 122 + SELECTED_ORDER_CARD_CFG.cardH / 2) + 15;
+    // ของในคลังลงมาเท่าที่จำเป็นจริงๆ — v0.3.1: ค่านี้ (~335) พอดีกับ DEFAULT_DIVIDER1_Y ใหม่
+    // (H*0.40 ≈ 337.6) จึง needed ปกติเป็น 0, relayoutBelowOrders ทำหน้าที่เป็น safety net เท่านั้น
+    const totalOrdersHeight = (visibleQueue.length > 0 ? 278 + QUEUE_CARD_CFG.cardH / 2 : 140 + SELECTED_ORDER_CARD_CFG.cardH / 2) + 15;
     this.relayoutBelowOrders(totalOrdersHeight);
   }
 
@@ -994,7 +1002,7 @@ class GameScene extends Phaser.Scene {
     this.boxEmptyText.setVisible(entries.length === 0);
 
     // จัดเรียง "ป้าย" สินค้าในกล่องเป็นแถวๆ สูงสุด 2 ป้าย/แถว (พอดีเป๊ะกับความกว้างกล่อง 160px)
-    const boxHalfW = 80, boxHalfH = 55;
+    const boxHalfW = 80, boxHalfH = 50; // v0.3.1: กล่องเตี้ยลงเป็น 100 (สูงสุด 3 ป้าย = 2 แถว ยังพอดี)
     entries.forEach(([k, n], i) => {
       const row = Math.floor(i / PILL_COLS), col = i % PILL_COLS;
       const x = -boxHalfW + BOX_PAD + PILL_W / 2 + col * (PILL_W + PILL_GAP_X);

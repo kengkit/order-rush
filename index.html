@@ -29,6 +29,40 @@
   @media (orientation: landscape) {
     #rotate-warning { display: flex; }
   }
+
+  /* Overlay กรอกชื่อผู้เล่น: ใช้ HTML input จริงแทน DOM element ของ Phaser เพราะเกมนี้ปิด
+     Scale Manager แล้วคุมตำแหน่ง canvas เอง (Scale.NONE) DOM container ของ Phaser จะวางตำแหน่ง
+     เพี้ยน — overlay แบบ fixed กลางจอด้วย CSS ตรงๆ เสถียรกว่า และได้คีย์บอร์ดจริงของมือถือฟรี */
+  #name-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 600;
+    background: rgba(0, 0, 0, 0.82);
+    align-items: center; justify-content: center;
+    font-family: 'Kanit', sans-serif;
+  }
+  #name-overlay.show { display: flex; }
+  .name-box {
+    background: #212121; border: 2px solid #dcef22; border-radius: 16px;
+    padding: 24px 28px; width: min(320px, 84vw); text-align: center;
+    box-shadow: 0 0 30px rgba(220, 239, 34, 0.15);
+  }
+  .name-title { color: #ffffff; font-size: 16px; margin-bottom: 4px; }
+  .name-hint { color: #a8ab9a; font-size: 12px; margin-bottom: 12px; }
+  #player-name-input {
+    width: 100%; box-sizing: border-box;
+    background: #0c0c0c; color: #dcef22;
+    border: 1px solid #7d8620; border-radius: 10px;
+    padding: 10px 12px; font-size: 20px; text-align: center;
+    letter-spacing: 2px; text-transform: uppercase; outline: none;
+    font-family: 'Kanit', sans-serif;
+  }
+  #player-name-input:focus { border-color: #dcef22; }
+  #name-error { color: #ff3d55; font-size: 12px; height: 16px; margin-top: 6px; }
+  #name-confirm {
+    margin-top: 10px; background: #dcef22; color: #141414;
+    border: none; border-radius: 12px; padding: 10px 34px;
+    font-size: 17px; font-weight: 600; font-family: 'Kanit', sans-serif; cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -36,6 +70,15 @@
 <div id="rotate-warning">
   <div style="font-size: 48px;">📱↻</div>
   <div style="font-size: 18px;">กรุณาหมุนจอกลับเป็นแนวตั้ง<br>เพื่อเล่นเกม Order Rush</div>
+</div>
+<div id="name-overlay">
+  <div class="name-box">
+    <div class="name-title">👤 ตั้งชื่อผู้เล่น</div>
+    <div class="name-hint">ภาษาอังกฤษ A-Z หรือตัวเลข 0-9 เท่านั้น (สูงสุด 10 ตัว)</div>
+    <input id="player-name-input" maxlength="10" autocomplete="off" spellcheck="false" placeholder="ENTER NAME">
+    <div id="name-error"></div>
+    <button id="name-confirm">ตกลง</button>
+  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 <script>
@@ -58,9 +101,12 @@ const COMBO_THRESHOLD = 3;
 const TIME_LIMIT_SECONDS = 60; // ช่วงทดสอบ: 1 นาที (ของจริง: 180 = 3 นาที)
 const ORDER_BASE_SCORE = 1;    // ช่วงทดสอบ: 1 แต้ม/ออเดอร์ (ของจริง: 100)
 
-// คีย์ localStorage เก็บคะแนนสูงสุด (v0.1.1: เพิ่มระบบ high score ฝั่ง client ล้วนๆ ไม่มีระบบออนไลน์)
-// หมายเหตุ: เกมเปลี่ยนชื่อเป็น Order Rush แล้ว แต่คงคีย์เดิมไว้ ไม่ให้สถิติสูงสุดของผู้เล่นเดิมหาย
-const HIGH_SCORE_KEY = 'syrupRushHighScore';
+// คีย์ localStorage ของระบบชื่อผู้เล่น + บอร์ดคะแนน (v0.4.0) — เก็บฝั่ง client ล้วนๆ ไม่มีเซิร์ฟเวอร์
+// บอร์ดจึงเป็น "ต่อเครื่อง" (ทุกคนที่เล่นบนเครื่อง/เบราว์เซอร์เดียวกันเห็นบอร์ดเดียวกัน)
+// โครงสร้างบอร์ด: [{ name: 'KENG', score: 42 }, ...] เรียงคะแนนมาก→น้อย เก็บสูงสุด 50 รายชื่อ
+// กติกาชื่อซ้ำ: อัปเดตคะแนนก็ต่อเมื่อคะแนนใหม่สูงกว่าของเดิมเท่านั้น (ดู submitScore)
+const NAME_KEY = 'orderRushPlayerName';
+const LEADERBOARD_KEY = 'orderRushLeaderboard';
 
 // Order Board: มีการ์ดหลัก (ออเดอร์ลูกค้าที่กำลังแพ็ก) ขนาดคงที่ใหญ่ 1 ใบ + คิวจัดส่งขนาดเล็กกว่า
 // สูงสุด 3 ใบ ไม่มีการไล่ขนาดลงอีกต่อไป เพื่อไม่ให้ไอคอน/ตัวอักษรเล็กเกินอ่านยากไม่ว่าจะมีออเดอร์
@@ -169,6 +215,8 @@ class GameScene extends Phaser.Scene {
     this.ordersExpired = 0; // จำนวนออเดอร์ที่หมดเวลาทั้งเกม (โชว์ในหน้า Game Over)
     this.gameOver = false;
     this.gameStarted = false; // ต้องกดเริ่มเกมที่ Start Screen ก่อน ไม่งั้นนับเวลาทันทีที่โหลดหน้า
+    // ชื่อผู้เล่นล่าสุดที่เคยตั้งไว้บนเครื่องนี้ (จำข้ามรอบ/ข้ามการเปิดหน้าใหม่ ไม่ต้องกรอกซ้ำทุกครั้ง)
+    this.playerName = localStorage.getItem(NAME_KEY) || '';
 
     this.setupAudio();
     this.buildUI();
@@ -177,42 +225,65 @@ class GameScene extends Phaser.Scene {
   }
 
   // ----------------- Start Screen -----------------
-  // โชว์ก่อนเริ่มเกมเสมอ: ชื่อเกม + วิธีเล่นย่อ + ปุ่มเริ่ม ป้องกันนับเวลาทิ้งก่อนผู้เล่นพร้อม
+  // โชว์ก่อนเริ่มเกมเสมอ: ชื่อเกม + วิธีเล่นย่อ + บอร์ดคะแนน (เห็นก่อนเข้าร่วมตามสเปก v0.4.0) +
+  // ชื่อผู้เล่น (แตะเพื่อแก้ไข) + ปุ่มเริ่ม — ถ้ายังไม่เคยตั้งชื่อ กด "เริ่มเกม" จะเด้งช่องกรอกชื่อก่อน
   showStartScreen() {
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(300);
-    const panel = this.add.rectangle(W / 2, H / 2, 320, 420, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(301);
+    const panel = this.add.rectangle(W / 2, H / 2, 320, 500, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(301);
 
     // ชื่อเกม "ORDER RUSH" (เหลืองนีออนแบรนด์ WAAN KUEN TA) + คำอธิบายสั้นๆ
-    const title = this.add.text(W / 2, H / 2 - 170, 'ORDER RUSH', { fontSize: '32px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
+    const title = this.add.text(W / 2, H / 2 - 215, 'ORDER RUSH', { fontSize: '32px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
       .setOrigin(0.5).setDepth(302).setShadow(0, 2, '#000000', 4, false, true);
 
-    const subtitle = this.add.text(W / 2, H / 2 - 130, 'จัดออเดอร์ไซรัปและแหวนให้ทัน ก่อนลูกค้ารอไม่ไหว!', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT })
+    const subtitle = this.add.text(W / 2, H / 2 - 184, 'จัดออเดอร์ไซรัปและแหวนให้ทัน ก่อนลูกค้ารอไม่ไหว!', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT })
       .setOrigin(0.5).setDepth(302);
 
+    // วิธีเล่นย่อเหลือ 2 บรรทัด เพื่อคืนพื้นที่ให้บอร์ดคะแนน (กติกาเต็มผู้เล่นเรียนรู้ได้จากการเล่นจริง)
     const bullets = [
-      '• แตะสินค้าเพื่อใส่กล่อง',
-      '• แพ็กให้ตรงกับออเดอร์ลูกค้า',
-      '• กดส่งออกเมื่อของครบ',
-      '• ทำคอมโบเพื่อรับโบนัส',
-      '• ยิ่งท้ายเกมออเดอร์ยิ่งโหด!'
+      '• แตะสินค้าใส่กล่อง แพ็กให้ตรงออเดอร์ลูกค้า',
+      '• ส่งเมื่อของครบ ทำคอมโบรับโบนัส ยิ่งท้ายยิ่งโหด!'
     ];
     const bulletTexts = bullets.map((line, i) =>
-      this.add.text(W / 2, H / 2 - 90 + i * 36, line, { fontSize: '14px', color: THEME.textPrimary, fontFamily: FONT })
+      this.add.text(W / 2, H / 2 - 156 + i * 22, line, { fontSize: '12px', color: THEME.textPrimary, fontFamily: FONT })
         .setOrigin(0.5).setDepth(302)
     );
 
-    // โลโก้ทั้งสองแบรนด์คู่กันใต้วิธีเล่น (WAAN KUEN TA ฝั่งไซรัป × SM ฝั่งแหวน)
-    const wktLogo = this.drawWaanKuenTaLogo(W / 2 - 58, H / 2 + 92, 28).setDepth(302);
-    const smLogo = this.drawSMLogo(W / 2 + 58, H / 2 + 92, 30).setDepth(302);
+    // บอร์ดคะแนนสูงสุดของเครื่องนี้ (TOP 5) — เห็นก่อนตัดสินใจเข้าร่วมตามสเปก
+    const boardHeader = this.add.text(W / 2, H / 2 - 104, '🏆 บอร์ดคะแนนสูงสุด', { fontSize: '15px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT })
+      .setOrigin(0.5).setDepth(302);
+    const boardTexts = this.createLeaderboardTexts(W / 2, H / 2 - 78, 24, 302, this.playerName);
+
+    // แถวชื่อผู้เล่นปัจจุบัน แตะเพื่อเปิดช่องกรอก/แก้ไขชื่อ (HTML overlay ดูท้ายไฟล์)
+    const nameRowLabel = name => name ? `👤 ${name}  (แตะเพื่อแก้ไขชื่อ)` : '👤 ยังไม่ตั้งชื่อ — แตะที่นี่เพื่อตั้งชื่อ';
+    const nameRow = this.add.text(W / 2, H / 2 + 56, nameRowLabel(this.playerName), { fontSize: '14px', color: THEME.accentNeonText, fontFamily: FONT })
+      .setOrigin(0.5).setDepth(302).setInteractive({ useHandCursor: true });
+    nameRow.on('pointerdown', () => {
+      window.showNameOverlay(this.playerName, name => {
+        this.playerName = name;
+        nameRow.setText(nameRowLabel(name));
+      });
+    });
+
+    // โลโก้ทั้งสองแบรนด์คู่กัน (WAAN KUEN TA ฝั่งไซรัป × SM ฝั่งแหวน)
+    const wktLogo = this.drawWaanKuenTaLogo(W / 2 - 58, H / 2 + 104, 24).setDepth(302);
+    const smLogo = this.drawSMLogo(W / 2 + 58, H / 2 + 104, 26).setDepth(302);
 
     // CTA หลักเด่น: เหลืองนีออน + ตัวหนังสือดำ แบบเดียวกับโลโก้ WAAN KUEN TA
-    const startBtn = this.add.rectangle(W / 2, H / 2 + 150, 220, 56, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(302);
-    const startBtnText = this.add.text(W / 2, H / 2 + 150, 'เริ่มเกม', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(302);
+    const startBtn = this.add.rectangle(W / 2, H / 2 + 170, 220, 56, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(302);
+    const startBtnText = this.add.text(W / 2, H / 2 + 170, 'เริ่มเกม', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(302);
 
-    const startScreenObjects = [overlay, panel, title, subtitle, startBtn, startBtnText, wktLogo, smLogo, ...bulletTexts];
+    const startScreenObjects = [overlay, panel, title, subtitle, boardHeader, nameRow, startBtn, startBtnText, wktLogo, smLogo, ...bulletTexts, ...boardTexts];
     startBtn.on('pointerdown', () => {
-      startScreenObjects.forEach(o => o.destroy());
-      this.startGame();
+      const begin = () => {
+        startScreenObjects.forEach(o => o.destroy());
+        this.startGame();
+      };
+      // บังคับต้องมีชื่อ (อังกฤษ/ตัวเลข) ก่อนเริ่มเสมอ — ถ้ายังไม่มีให้เด้งช่องกรอกก่อนแล้วค่อยเริ่ม
+      if (!this.playerName) {
+        window.showNameOverlay('', name => { this.playerName = name; begin(); });
+      } else {
+        begin();
+      }
     });
   }
 
@@ -1154,6 +1225,61 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // ----------------- บอร์ดคะแนน (Leaderboard ฝั่ง client เก็บใน localStorage) -----------------
+  // อ่านบอร์ดจาก localStorage แบบกันพัง: ข้อมูลเสีย/โดนแก้มือ/parse ไม่ได้ → คืน [] เริ่มใหม่
+  loadLeaderboard() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+      return Array.isArray(raw) ? raw.filter(e => e && typeof e.name === 'string' && typeof e.score === 'number') : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // บันทึกคะแนนลงบอร์ดตามกติกา v0.4.0: ชื่อซ้ำ (เทียบแบบตัวพิมพ์ใหญ่) จะอัปเดตก็ต่อเมื่อคะแนนใหม่
+  // "สูงกว่า" ของเดิมเท่านั้น ไม่งั้นคงค่าเดิมไว้ — คืนอันดับปัจจุบันของชื่อนี้ + flag ว่าสถิติดีขึ้นไหม
+  submitScore(name, score) {
+    const key = (name || 'PLAYER').toUpperCase();
+    const list = this.loadLeaderboard();
+    const idx = list.findIndex(e => e.name === key);
+    let improved = false;
+    if (idx >= 0) {
+      if (score > list[idx].score) {
+        list[idx].score = score;
+        improved = true;
+      }
+    } else {
+      list.push({ name: key, score });
+      improved = true; // ลงบอร์ดครั้งแรก = สถิติแรกของชื่อนี้
+    }
+    list.sort((a, b) => b.score - a.score);
+    const trimmed = list.slice(0, 50); // จำกัด 50 รายชื่อ กัน localStorage โตไม่จำกัด
+    try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(trimmed)); } catch (e) {}
+    const rank = trimmed.findIndex(e => e.name === key) + 1; // 0 = หลุดโผ 50 อันดับ
+    return { rank, improved };
+  }
+
+  // สร้างชุด Text objects แสดงบอร์ด TOP 5 (ใช้ร่วมกันทั้งหน้า Start และหน้า Game Over)
+  // ไฮไลต์แถวของผู้เล่นปัจจุบันเป็นสีเหลืองนีออนให้หาตัวเองเจอทันที — คืน array ให้ผู้เรียก
+  // เก็บไว้ destroy รวมกับ object อื่นของหน้านั้น
+  createLeaderboardTexts(cx, yStart, gap, depth, highlightName) {
+    const list = this.loadLeaderboard().slice(0, 5);
+    const objs = [];
+    if (list.length === 0) {
+      objs.push(this.add.text(cx, yStart + gap, 'ยังไม่มีคะแนน — มาเป็นคนแรกกัน!', { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5).setDepth(depth));
+      return objs;
+    }
+    const hl = (highlightName || '').toUpperCase();
+    list.forEach((e, i) => {
+      const isMe = hl && e.name === hl;
+      objs.push(this.add.text(cx, yStart + i * gap, `${i + 1}. ${e.name} — ${e.score} แต้ม`, {
+        fontSize: '13px', color: isMe ? THEME.accentNeonText : THEME.textPrimary,
+        fontStyle: isMe ? 'bold' : 'normal', fontFamily: FONT
+      }).setOrigin(0.5).setDepth(depth));
+    });
+    return objs;
+  }
+
   // ----------------- Game Over -----------------
   endGame() {
     this.gameOver = true;
@@ -1168,11 +1294,11 @@ class GameScene extends Phaser.Scene {
     this.score = Math.max(0, this.scoreBeforeMultiplier + this.comboBonus);
     this.scoreText.setText(String(this.score));
 
-    // อ่าน/บันทึกคะแนนสูงสุดจาก localStorage (ไม่มีระบบออนไลน์ เก็บเฉพาะในเครื่องผู้เล่น)
-    const prevHighScore = parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0', 10);
-    this.isNewHighScore = this.score > prevHighScore;
-    this.highScore = this.isNewHighScore ? this.score : prevHighScore;
-    if (this.isNewHighScore) localStorage.setItem(HIGH_SCORE_KEY, String(this.score));
+    // v0.4.0: บันทึกคะแนนลงบอร์ดตามชื่อผู้เล่น (แทนระบบ high score เดี่ยวแบบเดิม)
+    // กติกาชื่อซ้ำ: submitScore จะอัปเดตให้ก็ต่อเมื่อคะแนนใหม่สูงกว่าสถิติเดิมของชื่อนั้นเท่านั้น
+    const result = this.submitScore(this.playerName, this.score);
+    this.playerRank = result.rank;
+    this.rankImproved = result.improved;
 
     this.showGameOverScreen();
   }
@@ -1187,14 +1313,15 @@ class GameScene extends Phaser.Scene {
 
   showGameOverScreen() {
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(200);
-    const panel = this.add.rectangle(W / 2, H / 2, 320, 480, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(201);
+    // v0.4.0: ยืด panel เป็น 560 เพื่อเพิ่มบอร์ดคะแนน TOP 5 + อันดับของผู้เล่น (เห็นหลังเล่นจบตามสเปก)
+    const panel = this.add.rectangle(W / 2, H / 2, 320, 560, THEME.panel).setStrokeStyle(3, THEME.panelBorder).setDepth(201);
 
-    const baseY = H / 2 - 210;
+    const baseY = H / 2 - 250;
     // title หน้า Game Over ใช้ mood เดียวกับ start screen (เหลืองนีออนแบรนด์)
-    const title = this.add.text(W / 2, baseY, 'หมดเวลา!', { fontSize: '28px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
+    const title = this.add.text(W / 2, baseY, 'หมดเวลา!', { fontSize: '26px', color: THEME.accentNeonText, fontStyle: 'bold', fontFamily: FONT })
       .setOrigin(0.5).setDepth(202).setShadow(0, 2, '#000000', 4, false, true);
 
-    // แจกแจงสถิติ: คะแนนก่อนบวกโบนัส + โบนัสคอมโบ + คอมโบสูงสุด + ส่งสำเร็จ + หมดเวลา (req #6)
+    // แจกแจงสถิติ: คะแนนก่อนบวกโบนัส + โบนัสคอมโบ + คอมโบสูงสุด + ส่งสำเร็จ + หมดเวลา
     const statLines = [
       `คะแนนก่อนโบนัส: ${this.scoreBeforeMultiplier}`,
       `โบนัสคอมโบ (x${this.maxCombo} × 10): +${this.comboBonus}`,
@@ -1203,24 +1330,28 @@ class GameScene extends Phaser.Scene {
       `หมดเวลา: ${this.ordersExpired} ออเดอร์`
     ];
     statLines.forEach((line, i) => {
-      this.add.text(W / 2, baseY + 40 + i * 24, line, { fontSize: '14px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+      this.add.text(W / 2, baseY + 34 + i * 22, line, { fontSize: '13px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5).setDepth(202);
     });
 
-    const scoreText = this.add.text(W / 2, baseY + 185, `คะแนนรวม: ${this.score}`, { fontSize: '22px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    const scoreText = this.add.text(W / 2, baseY + 156, `${this.playerName || 'PLAYER'} — ${this.score} แต้ม`, { fontSize: '22px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
 
-    // คะแนนสูงสุด + ป้าย "สถิติใหม่!" ถ้าทำลายสถิติเดิม (req #5)
-    this.add.text(W / 2, baseY + 210, `คะแนนสูงสุด: ${this.highScore}`, { fontSize: '14px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5).setDepth(202);
-    if (this.isNewHighScore) {
-      const badge = this.add.text(W / 2, baseY + 232, '🏆 สถิติใหม่!', { fontSize: '16px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
-      this.tweens.add({ targets: badge, scale: { from: 0.6, to: 1 }, duration: 300, ease: 'Back.Out' });
+    // บอร์ดคะแนน TOP 5 หลังเล่นจบ + อันดับปัจจุบันของผู้เล่น (แถวตัวเองไฮไลต์เหลืองนีออน)
+    this.add.text(W / 2, baseY + 192, '🏆 บอร์ดคะแนนสูงสุด', { fontSize: '15px', color: THEME.goldText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    this.createLeaderboardTexts(W / 2, baseY + 216, 24, 202, this.playerName);
+    const rankLabel = this.playerRank > 0 ? `อันดับของคุณ: #${this.playerRank}` : 'อันดับของคุณ: เกิน TOP 50';
+    const rankText = this.add.text(W / 2, baseY + 338, rankLabel + (this.rankImproved ? '  🏆 สถิติใหม่!' : ''), {
+      fontSize: '14px', color: this.rankImproved ? THEME.goldText : THEME.textSecondary, fontStyle: 'bold', fontFamily: FONT
+    }).setOrigin(0.5).setDepth(202);
+    if (this.rankImproved) {
+      this.tweens.add({ targets: rankText, scale: { from: 0.6, to: 1 }, duration: 300, ease: 'Back.Out' });
     }
 
-    // ดาว: วาดด้วย Phaser star shape ไม่ใช้รูปภาพ
+    // ดาว: วาดด้วย Phaser star shape ไม่ใช้รูปภาพ (ย่อลงเล็กน้อยให้บอร์ดคะแนนมีที่)
     const stars = this.calcStars(this.score);
-    const starY = baseY + 270;
+    const starY = baseY + 374;
     for (let i = 0; i < 3; i++) {
       const filled = i < stars;
-      const star = this.add.star(W / 2 - 60 + i * 60, starY, 5, 18, 36, filled ? THEME.gold : 0x3a3f63)
+      const star = this.add.star(W / 2 - 50 + i * 50, starY, 5, 13, 26, filled ? THEME.gold : 0x3a3f63)
         .setStrokeStyle(2, 0x1c1f3a)
         .setDepth(202);
       if (filled) {
@@ -1229,14 +1360,14 @@ class GameScene extends Phaser.Scene {
     }
 
     // CTA หลักเด่น: เหลืองนีออน + ตัวหนังสือดำ ให้เข้าธีมเดียวกับปุ่มเริ่มเกม
-    const playAgainBtn = this.add.rectangle(W / 2, baseY + 330, 220, 56, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(202);
-    this.add.text(W / 2, baseY + 330, 'เล่นใหม่ 🔄', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    const playAgainBtn = this.add.rectangle(W / 2, baseY + 436, 220, 54, THEME.accentNeon).setStrokeStyle(3, THEME.accentNeonDark).setInteractive({ useHandCursor: true }).setDepth(202);
+    this.add.text(W / 2, baseY + 436, 'เล่นใหม่ 🔄', { fontSize: '20px', color: THEME.ctaText, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
     playAgainBtn.on('pointerdown', () => this.scene.restart());
 
     // v0.2.0: ปุ่มแชร์คะแนน — ชวนเพื่อนมาแข่งผ่านลิงก์เดียวกับที่เปิดเกมอยู่ (ไม่มีระบบออนไลน์/backend
     // ใช้ Web Share API ของเบราว์เซอร์ ถ้าไม่มี (เช่น desktop) fallback เป็นคัดลอกข้อความลงคลิปบอร์ด)
-    const shareBtn = this.add.rectangle(W / 2, baseY + 392, 220, 48, THEME.panelAlt).setStrokeStyle(2, THEME.accentSilver, 0.8).setInteractive({ useHandCursor: true }).setDepth(202);
-    const shareBtnText = this.add.text(W / 2, baseY + 392, 'แชร์คะแนน 📤', { fontSize: '17px', color: THEME.textPrimary, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
+    const shareBtn = this.add.rectangle(W / 2, baseY + 494, 220, 46, THEME.panelAlt).setStrokeStyle(2, THEME.accentSilver, 0.8).setInteractive({ useHandCursor: true }).setDepth(202);
+    const shareBtnText = this.add.text(W / 2, baseY + 494, 'แชร์คะแนน 📤', { fontSize: '17px', color: THEME.textPrimary, fontStyle: 'bold', fontFamily: FONT }).setOrigin(0.5).setDepth(202);
     shareBtn.on('pointerdown', () => {
       const shareText = `ฉันทำได้ ${this.score} แต้ม (${'⭐'.repeat(stars) || 'ยังไม่ได้ดาว'}) ใน Order Rush! มาลองแข่งกัน: ${location.href}`;
       if (navigator.share) {
@@ -1305,6 +1436,46 @@ window.addEventListener('resize', fitGameContainer);
 window.addEventListener('orientationchange', fitGameContainer);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', fitGameContainer);
 fitGameContainer();
+
+// ----------------- Overlay กรอกชื่อผู้เล่น (HTML ล้วน อยู่นอก Phaser) -----------------
+// เกมเรียกผ่าน window.showNameOverlay(currentName, onDone) — onDone จะถูกเรียกพร้อมชื่อที่ผ่าน
+// การกรองแล้วเท่านั้น (A-Z/0-9 ตัวพิมพ์ใหญ่ ยาว 1-10 ตัว) กติกา "อังกฤษเท่านั้น" บังคับสองชั้น:
+// กรองทันทีตอนพิมพ์ (ตัดอักขระอื่นรวมภาษาไทยทิ้ง) + ตรวจซ้ำตอนกดตกลง
+const nameOverlay = document.getElementById('name-overlay');
+const nameInput = document.getElementById('player-name-input');
+const nameError = document.getElementById('name-error');
+const nameConfirmBtn = document.getElementById('name-confirm');
+let nameDoneCallback = null;
+
+nameInput.addEventListener('input', () => {
+  const cleaned = nameInput.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+  if (cleaned !== nameInput.value) nameInput.value = cleaned;
+  nameError.textContent = '';
+});
+
+function confirmPlayerName() {
+  const v = nameInput.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+  if (!v) {
+    nameError.textContent = 'กรุณาตั้งชื่อด้วย A-Z หรือ 0-9 อย่างน้อย 1 ตัว';
+    return;
+  }
+  localStorage.setItem(NAME_KEY, v);
+  nameOverlay.classList.remove('show');
+  nameInput.blur(); // ปิดคีย์บอร์ดมือถือ ไม่ให้ค้างบังจอเกม
+  const cb = nameDoneCallback;
+  nameDoneCallback = null;
+  if (cb) cb(v);
+}
+nameConfirmBtn.addEventListener('click', confirmPlayerName);
+nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') confirmPlayerName(); });
+
+window.showNameOverlay = (currentName, onDone) => {
+  nameDoneCallback = onDone;
+  nameInput.value = currentName || '';
+  nameError.textContent = '';
+  nameOverlay.classList.add('show');
+  setTimeout(() => nameInput.focus(), 50);
+};
 </script>
 </body>
 </html>

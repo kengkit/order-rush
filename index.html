@@ -113,7 +113,10 @@ const LEADERBOARD_KEY = 'orderRushLeaderboard';
 // ปล่อยว่าง '' = โหมดออฟไลน์ ใช้บอร์ดใน localStorage ของเครื่องเท่านั้น (พฤติกรรมเดิมของ v0.4.0)
 // กติกา "ชื่อซ้ำแทนที่เมื่อคะแนนสูงกว่าเท่านั้น" ถูกบังคับที่ security rules ฝั่งเซิร์ฟเวอร์
 // (".write": "!data.exists() || newData.val() > data.val()") — เซิร์ฟเวอร์ปฏิเสธเองถ้าคะแนนไม่สูงกว่า
-const ONLINE_DB_URL = '';
+// Firebase RTDB ของโปรเจกต์ game-arcade (เจ้าของ: ผู้ใช้) — บอร์ดอยู่ที่ /leaderboard ระดับบนสุด
+// ตาม security rules ที่ publish ไว้จริง (ถ้าอนาคตมีหลายเกมในฐานเดียวกัน ค่อยย้ายไป namespace
+// ต่อเกม เช่น /orderrush/leaderboard พร้อมอัปเดต rules ให้ครอบ path ใหม่)
+const ONLINE_DB_URL = 'https://game-arcade-718a3-default-rtdb.asia-southeast1.firebasedatabase.app';
 const ONLINE_TIMEOUT_MS = 6000; // กันเน็ตช้าค้างหน้าจอ: เกินนี้ตัดเป็นโหมดออฟไลน์ทันที
 
 // Order Board: มีการ์ดหลัก (ออเดอร์ลูกค้าที่กำลังแพ็ก) ขนาดคงที่ใหญ่ 1 ใบ + คิวจัดส่งขนาดเล็กกว่า

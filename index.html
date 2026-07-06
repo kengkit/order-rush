@@ -29,13 +29,19 @@
   @media (orientation: landscape) {
     #rotate-warning { display: flex; }
   }
+  /* ขณะช่องกรอกชื่อเปิดอยู่ ปิดคำเตือนหมุนจอเด็ดขาด — คีย์บอร์ดที่เด้งขึ้นทำให้ viewport
+     กว้าง>สูงชั่วคราว จนถูกตีความผิดว่าเป็นแนวนอน (ดูคอมเมนต์ที่ #name-overlay) */
+  body.name-entry-open #rotate-warning { display: none !important; }
 
   /* Overlay กรอกชื่อผู้เล่น: ใช้ HTML input จริงแทน DOM element ของ Phaser เพราะเกมนี้ปิด
      Scale Manager แล้วคุมตำแหน่ง canvas เอง (Scale.NONE) DOM container ของ Phaser จะวางตำแหน่ง
      เพี้ยน — overlay แบบ fixed กลางจอด้วย CSS ตรงๆ เสถียรกว่า และได้คีย์บอร์ดจริงของมือถือฟรี */
+  /* z-index สูงกว่าคำเตือนหมุนจอ (999) เพราะตอนคีย์บอร์ดมือถือเด้งขึ้น viewport จะเตี้ยจนกว้าง>สูง
+     ทำให้ media query orientation ตีความเป็น "แนวนอน" แล้วคำเตือนหมุนจอโผล่ทับช่องกรอกชื่อ
+     ทั้งที่เครื่องตั้งอยู่ปกติ (บั๊กที่เจอจริงบน iPhone) — ต้องให้ช่องกรอกอยู่บนสุดเสมอ */
   #name-overlay {
     display: none;
-    position: fixed; inset: 0; z-index: 600;
+    position: fixed; inset: 0; z-index: 1000;
     background: rgba(0, 0, 0, 0.82);
     align-items: center; justify-content: center;
     font-family: 'Kanit', sans-serif;
@@ -1545,6 +1551,7 @@ function confirmPlayerName() {
   }
   localStorage.setItem(NAME_KEY, v);
   nameOverlay.classList.remove('show');
+  document.body.classList.remove('name-entry-open');
   nameInput.blur(); // ปิดคีย์บอร์ดมือถือ ไม่ให้ค้างบังจอเกม
   const cb = nameDoneCallback;
   nameDoneCallback = null;
@@ -1558,6 +1565,8 @@ window.showNameOverlay = (currentName, onDone) => {
   nameInput.value = currentName || '';
   nameError.textContent = '';
   nameOverlay.classList.add('show');
+  // ธงบอกว่า "กำลังกรอกชื่ออยู่" — CSS ใช้ปิดคำเตือนหมุนจอที่จะเด้งผิดๆ ตอนคีย์บอร์ดมือถือดัน viewport
+  document.body.classList.add('name-entry-open');
   setTimeout(() => nameInput.focus(), 50);
 };
 </script>

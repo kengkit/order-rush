@@ -91,6 +91,13 @@
 
 // ===================== ค่าคงที่ของเกม (Game Constants) =====================
 const W = 390, H = 844;
+// v0.7.0 "Arcade Premium": render ตามความหนาแน่นพิกเซลจริงของจอ (Retina/มือถือ DPR 2-3)
+// เดิม canvas ถูกวาดที่ 390x844 พิกเซลจริงแล้วโดน CSS ยืดเต็มจอ → ภาพ/ตัวหนังสือมัวทั้งเกม
+// วิธีแก้: ขยาย canvas ภายในเป็น W*DPR x H*DPR แล้วซูมกล้องด้วย DPR (พิกัดโลกยังเป็น 390x844
+// เท่าเดิมทุกบรรทัด ไม่ต้องแก้เลย์เอาต์) + บังคับ resolution ของ Text ทุกชิ้น (ดูท้ายไฟล์)
+// จำกัดไม่เกิน 3 กัน canvas ใหญ่เกินจำเป็นบนจอ DPR สูงพิเศษ
+// override ได้ด้วย ?dpr=2 ท้าย URL (ไว้ debug/ทดสอบบนจอ DPR ต่างๆ โดยไม่ต้องมีเครื่องจริง)
+const DPR = Math.min(parseFloat(new URLSearchParams(location.search).get('dpr')) || window.devicePixelRatio || 1, 3);
 const FONT = 'Kanit, sans-serif'; // ฟอนต์หลักของเกม รองรับภาษาไทย
 // v0.2.0: ปลดล็อกระบบไล่ระดับความยากแล้ว (เฟส warmup → midrush → finalrush คิดเป็นสัดส่วนของ
 // เวลารอบ ดู getCurrentPhase) เกมสนุกขึ้นเพราะยากขึ้นเรื่อยๆ ภายในรอบเดียว — เปิดกลับเป็น true
@@ -129,16 +136,17 @@ const ONLINE_TIMEOUT_MS = 6000; // กันเน็ตช้าค้างห
 // Order Board (v0.6.0): การ์ดออเดอร์ใหญ่ใบเดียวกลางบอร์ด — ตัดการ์ดคิวจัดส่งออกทั้งหมดตาม
 // feedback ผู้เล่น (สายตาโดนการ์ดคิวดึงไปจำออเดอร์ผิดใบแล้วกดผิด) ขนาดการ์ด 340x140
 // ชิป 76px ไอคอน 23px คงเดิมจาก v0.3.1 ที่จูนให้อ่านง่ายบนมือถือ/แท็บเล็ตแล้ว
-const SELECTED_ORDER_CARD_CFG = { cols: 4, cardW: 340, cardH: 140, chipW: 76, chipH: 76, chipGap: 8, pad: 8, iconSize: 23, fontSize: '17px' };
+// v0.7.0: ขยายอีกขั้นตาม feedback ผู้เล่น (การ์ด 360x170, ชิป 80x84, ไอคอน 26, เลขจำนวน 19px)
+const SELECTED_ORDER_CARD_CFG = { cols: 4, cardW: 360, cardH: 170, chipW: 80, chipH: 84, chipGap: 8, pad: 8, iconSize: 26, fontSize: '19px' };
 
 // ตำแหน่ง y เริ่มต้นของเส้นแบ่งโซนหลังพื้นที่ออเดอร์ ใช้เป็นจุดอ้างอิงคำนวณว่าพื้นที่ออเดอร์ "ล้น"
 // ไปแค่ไหน แล้วต้องดันกล่องแพ็ก/ปุ่มส่ง/ของในคลังลงมาเพิ่มเท่าไหร่ (relayoutBelowOrders)
 // v0.6.0: บอร์ดเตี้ยลงมาก (ไม่มีแถวคิวแล้ว สูงจริง ~235) เลื่อนเส้นแบ่งขึ้นมาที่ 260
 // แล้วขยับโซนกลาง (กล่อง/ปุ่มส่ง) ตามขึ้นมาให้จังหวะหน้าจอไม่โหวง (ดู buildUI)
-const DEFAULT_DIVIDER1_Y = 260;
+const DEFAULT_DIVIDER1_Y = 265; // v0.7.0: บอร์ดสูงจริง ~260 (การ์ดใหญ่ขึ้น)
 // ดันลงมาได้ไม่เกินนี้ (คำนวณจากพื้นที่ว่างจริงด้านล่างของในคลัง ก่อนที่ป้ายชื่อใต้ปุ่มแถวล่าง
 // (y≈811) จะตกขอบจอ 844px) ปกติไม่ใช้เพราะบอร์ดพอดีกับ DEFAULT_DIVIDER1_Y อยู่แล้ว — safety net เท่านั้น
-const ORDERS_MAX_DELTA = 30;
+const ORDERS_MAX_DELTA = 15; // v0.7.0: ลดลงตามพื้นที่ว่างจริงใต้ป้ายชื่อแถวล่าง (y≈828 จากจอ 844)
 
 // ขนาด "ป้าย" (pill) แสดงสินค้าในกล่องแพ็ก: 2 ป้าย/แถว พอดีกับความกว้างกล่อง 160px
 // (8 pad + 68 + 8 gap + 68 + 8 pad = 160) สูงสุด 3 แถว พอดีกับความสูงกล่อง 110px
@@ -210,6 +218,10 @@ class GameScene extends Phaser.Scene {
     // โซน 2: Action zone (กลาง 40%) กล่องแพ็ก + ปุ่มส่ง
     // โซน 3: Inventory zone (ล่าง 30%) ปุ่มสินค้า
     this.cameras.main.setBackgroundColor('#0f0c29');
+    // v0.7.0 Arcade Premium: canvas ภายใน = W*DPR x H*DPR → ซูมกล้อง DPR เท่าแล้วเล็งกลางโลก
+    // เพื่อให้พิกัดโลกยังเป็น 390x844 เท่าเดิมทุกบรรทัด แต่ render ที่ความละเอียดจริงของจอ
+    // (ต้องตั้งใน create() เพราะ scene.restart() จะรีเซ็ตกล้องกลับ zoom 1 ทุกครั้ง)
+    this.cameras.main.setZoom(DPR).centerOn(W / 2, H / 2);
     this.drawBackground();
 
     // ----- สถานะเกม -----
@@ -456,9 +468,9 @@ class GameScene extends Phaser.Scene {
     // panel พื้นหลังครอบ Top Order Board ทั้งโซน (timer/score/label/การ์ด) ให้ดูเป็น
     // "บอร์ดคำสั่งงาน" ชิ้นเดียวที่คลีนขึ้น — ไม่ setInteractive จึงไม่บังการคลิกการ์ดด้านบน และ
     // ใช้ setDepth(-1) ให้แน่ใจว่าอยู่หลังสุดเสมอไม่ว่าจะสร้างก่อน/หลังอะไร
-    // v0.6.0: หดลงเหลือ 250 เพราะไม่มีแถวคิวจัดส่งแล้ว (การ์ดออเดอร์ใบเดียวจบที่ ~220)
+    // v0.7.0: ขยายเป็น 255 รับการ์ดออเดอร์ที่ใหญ่ขึ้น (จบที่ ~245)
     // ขอบเหลืองนีออนบางๆ ตามธีมแบรนด์ WAAN KUEN TA
-    const topBoardPanelTop = 10, topBoardPanelBottom = 250;
+    const topBoardPanelTop = 10, topBoardPanelBottom = 255;
     this.topBoardPanel = this.add.rectangle(W / 2, (topBoardPanelTop + topBoardPanelBottom) / 2, W - 20, topBoardPanelBottom - topBoardPanelTop, THEME.boardPanel, 0.42)
       .setStrokeStyle(2, THEME.accentNeon, 0.35)
       .setDepth(-1);
@@ -494,12 +506,12 @@ class GameScene extends Phaser.Scene {
     // เส้นแบ่งโซน (ใช้สีอ่อนแบบโปร่งแสง ให้กลืนกับธีมพื้นหลังมากขึ้น)
     // v0.1.8: divider2 + boxY/sendButton/inventory ขยับลงเล็กน้อยให้สัมพันธ์กับ Top Board ที่ใหญ่ขึ้น
     const divider1 = this.add.rectangle(0, DEFAULT_DIVIDER1_Y, W, 2, THEME.panelBorder, 0.4);
-    const divider2 = this.add.rectangle(0, H * 0.7 + 10, W, 2, THEME.panelBorder, 0.4);
+    const divider2 = this.add.rectangle(0, 575, W, 2, THEME.panelBorder, 0.4); // v0.7.0: ขยับขึ้นรับปุ่มสินค้าที่ใหญ่ขึ้น
 
     // ---- Zone 2: Action (กล่องแพ็ก + ปุ่มส่ง) ----
     // รวมองค์ประกอบของ "กล่อง" ไว้ใน container เดียว เพื่อให้ slide in/out ได้ทั้งชุดตอนส่งของ
     // v0.6.0: ขยับขึ้นตาม Top Board ที่เตี้ยลง (ไม่มีคิวแล้ว) ให้จังหวะหน้าจอเต็มพอดี ไม่มีช่องโหวง
-    const boxY = 360;
+    const boxY = 385; // v0.7.0: ขยับลงเล็กน้อยตามบอร์ดบนที่สูงขึ้น
     this.boxY = boxY;
     this.boxContainer = this.add.container(W / 2, boxY);
     // กล่องทั้งกล่อง = ปุ่มยกเลิก/ล้างของที่แพ็กไว้ (แทนปุ่ม "ล้าง" แยก)
@@ -521,10 +533,10 @@ class GameScene extends Phaser.Scene {
     // Graphics เพราะ Phaser Rectangle ปกติไม่รองรับ gradient fill/มุมโค้ง ส่วน hit area คลิกจริง
     // (this.sendButton) ทำให้โปร่งใสซ้อนทับตำแหน่ง/ขนาดเดิมไว้ ฟังก์ชัน trySendBox() ไม่เปลี่ยน
     // v0.3.1: ย่อเล็กน้อย (220x56 → 210x52) คืนพื้นที่ให้ด้านบน
-    const sendButtonY = 500; // v0.6.0: ขยับขึ้นตามกล่องแพ็ก (เดิม ~535)
+    const sendButtonY = 520; // v0.7.0: ขยับตามกล่องแพ็ก + ขยายปุ่มให้กดง่าย/เด่นขึ้น
     this.sendButtonY = sendButtonY;
-    this.sendButtonW = 210;
-    this.sendButtonH = 52;
+    this.sendButtonW = 230;
+    this.sendButtonH = 58;
     this.sendButtonGlow = this.add.rectangle(W / 2, sendButtonY, this.sendButtonW + 24, this.sendButtonH + 24, THEME.accentNeon, 0.08);
     this.sendButtonGraphic = this.add.graphics();
     this.drawSendButtonGraphic(false); // เริ่มต้นที่ state "ยังไม่พร้อมส่ง"
@@ -534,7 +546,8 @@ class GameScene extends Phaser.Scene {
 
     // ---- Zone 3: Inventory (ปุ่มสินค้า Tap to Pack) ----
     // v0.1.6: ขยายจาก 5 เป็น 6 ปุ่ม จัด layout 3 บน / 3 ล่าง ที่ x = 20% / 50% / 80% ทั้งสองแถว
-    const invY1 = H * 0.76 + 8, invY2 = H * 0.90 + 8;
+    // v0.7.0: ปุ่มใหญ่ขึ้น (r44) จัดสองแถวใหม่ให้พอดีจอ — แถวล่างสุดป้ายชื่อจบที่ ~828 (จอ 844)
+    const invY1 = 645, invY2 = 765;
     const positions = [
       { key: 'A', x: W * 0.2, y: invY1 }, { key: 'B', x: W * 0.5, y: invY1 }, { key: 'C', x: W * 0.8, y: invY1 },
       { key: 'D', x: W * 0.2, y: invY2 }, { key: 'E', x: W * 0.5, y: invY2 }, { key: 'F', x: W * 0.8, y: invY2 }
@@ -575,22 +588,22 @@ class GameScene extends Phaser.Scene {
   createProductButton(x, y, key) {
     const container = this.add.container(x, y);
     // dark circular pad + ขอบเหลืองหม่นบางๆ (จาก panel/panelBorder ธีมแบรนด์)
-    // v0.3.1: ย่อปุ่มลงเล็กน้อย (r38→35) คืนพื้นที่ให้ Order Board — hit zone คงเดิม 84px กดง่ายเหมือนเดิม
-    const bg = this.add.circle(0, 0, 35, THEME.panel).setStrokeStyle(2, THEME.panelBorder, 0.8);
+    // v0.7.0: ขยายปุ่มใหญ่ขึ้นตาม feedback ผู้เล่น (r35→44, ไอคอน 24→30, hit zone 84→96)
+    const bg = this.add.circle(0, 0, 44, THEME.panel).setStrokeStyle(2.5, THEME.panelBorder, 0.9);
     container.add(bg);
     // ring เรืองแสง (ซ่อนไว้ก่อน) ใช้ flash ตอนแตะให้ดูเป็น neon ring แบบ active feedback (req #9)
-    const ring = this.add.circle(0, 0, 35, 0x000000, 0).setStrokeStyle(3, THEME.accentNeon, 1).setAlpha(0);
+    const ring = this.add.circle(0, 0, 44, 0x000000, 0).setStrokeStyle(3, THEME.accentNeon, 1).setAlpha(0);
     container.add(ring);
     const g = this.add.graphics();
     container.add(g);
     // ส่ง container เข้าไปด้วยให้ drawProductShape แนบ label shortLabel เข้า container ให้เลย
     // (ต้อง add bg/g เข้า container ก่อนเรียกเสมอ ไม่งั้น label จะถูกองค์ประกอบที่ add ทีหลังบังทับ)
-    this.drawProductShape(g, key, 0, 0, 24, container);
-    const hitZone = this.add.zone(0, 0, 84, 84).setInteractive({ useHandCursor: true });
+    this.drawProductShape(g, key, 0, 0, 30, container);
+    const hitZone = this.add.zone(0, 0, 96, 96).setInteractive({ useHandCursor: true });
     container.add(hitZone);
 
     // ชื่อรสแบบสั้นใต้ไอคอน (req #7) ให้ผู้เล่นจำง่ายว่าปุ่มไหนคือรสไหน
-    const nameLabel = this.add.text(0, 43, PRODUCTS[key].name, { fontSize: '11px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
+    const nameLabel = this.add.text(0, 54, PRODUCTS[key].name, { fontSize: '13px', color: THEME.textPrimary, fontFamily: FONT }).setOrigin(0.5);
     container.add(nameLabel);
 
     hitZone.on('pointerdown', () => this.packItem(key));
@@ -925,15 +938,16 @@ class GameScene extends Phaser.Scene {
     this.selectedOrderId = this.activeOrders[0].id;
     const mainOrder = this.activeOrders[0];
 
-    const mainLabel = this.add.text(W / 2, 58, '📦 ออเดอร์ลูกค้า', { fontSize: '14px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
+    // v0.7.0: label 60 (15px), การ์ด y=160 (กิน 75..245) — ใหญ่ขึ้นตาม feedback ผู้เล่น
+    const mainLabel = this.add.text(W / 2, 60, '📦 ออเดอร์ลูกค้า', { fontSize: '15px', color: THEME.textSecondary, fontFamily: FONT }).setOrigin(0.5);
     this.ordersContainer.add(mainLabel);
-    this.renderOrderCard(mainOrder, SELECTED_ORDER_CARD_CFG, W / 2, 140);
+    this.renderOrderCard(mainOrder, SELECTED_ORDER_CARD_CFG, W / 2, 160);
 
     this.updatePatienceBars();
 
-    // ความสูงรวมของ Order Board คงที่ (~225) ต่ำกว่า DEFAULT_DIVIDER1_Y (260) เสมอ → delta 0
+    // ความสูงรวมของ Order Board คงที่ (~260) ต่ำกว่า DEFAULT_DIVIDER1_Y (265) เสมอ → delta 0
     // relayoutBelowOrders เหลือหน้าที่เป็น safety net เท่านั้น
-    const totalOrdersHeight = 140 + SELECTED_ORDER_CARD_CFG.cardH / 2 + 15;
+    const totalOrdersHeight = 160 + SELECTED_ORDER_CARD_CFG.cardH / 2 + 15;
     this.relayoutBelowOrders(totalOrdersHeight);
   }
 
@@ -1373,10 +1387,13 @@ class GameScene extends Phaser.Scene {
 }
 
 // ===================== Phaser Config =====================
+// v0.7.0 Arcade Premium: canvas ภายในใหญ่ขึ้น DPR เท่า (เช่น iPhone DPR 3 → 1170x2532)
+// แล้วซูมกล้องกลับด้วย DPR ใน create() — โลกของเกมยังเป็นพิกัด 390x844 เท่าเดิมทุกจุด
+// แต่ทุกเส้น/รูปทรง/ตัวหนังสือถูกวาดที่ความละเอียดพิกเซลจริงของจอ = คมกริบไม่มัวอีกต่อไป
 const config = {
   type: Phaser.AUTO,
-  width: W,
-  height: H,
+  width: W * DPR,
+  height: H * DPR,
   parent: 'game-container',
   backgroundColor: '#1a1a2e',
   scene: [GameScene],
@@ -1385,9 +1402,19 @@ const config = {
   // ด้านล่าง (fitGameContainer) แทน ให้ผลลัพธ์แม่นยำและคาดเดาได้ทุกอุปกรณ์
   scale: {
     mode: Phaser.Scale.NONE,
-    width: W,
-    height: H
+    width: W * DPR,
+    height: H * DPR
   }
+};
+
+// บังคับความละเอียดของ Text ทุกชิ้นในเกมเป็น DPR โดยครอบ factory กลางของ Phaser จุดเดียว
+// (Text ของ Phaser ถูก rasterize ลง texture ที่ resolution ของตัวเอง ถ้าปล่อยค่า default = 1
+// พอกล้องซูม DPR เท่า ตัวหนังสือจะถูกขยายแล้วแตก — ต้อง setResolution(DPR) ให้ทุกชิ้น)
+const baseTextFactory = Phaser.GameObjects.GameObjectFactory.prototype.text;
+Phaser.GameObjects.GameObjectFactory.prototype.text = function (x, y, text, style) {
+  const t = baseTextFactory.call(this, x, y, text, style);
+  t.setResolution(DPR);
+  return t;
 };
 
 const game = new Phaser.Game(config);
@@ -1422,6 +1449,11 @@ function fitGameContainer() {
   canvas.style.left = ((vw - renderW) / 2) + 'px';
   canvas.style.top = ((vh - renderH) / 2) + 'px';
 }
+// fit ซ้ำตอนเกม boot เสร็จ — ตอนสคริปต์รันถึงบรรทัดล่างสุด Phaser ยังไม่ทันสร้าง/แปะ canvas
+// ลง DOM (boot รอ DOMContentLoaded) การ fit ครั้งแรกจึงหาไม่เจอและ return เปล่า — เดิมรอดมาได้
+// เพราะขนาด attribute ของ canvas บังเอิญเท่าขนาดแสดงผลพอดี แต่ v0.7.0 canvas ภายในใหญ่ DPR เท่า
+// ถ้าไม่ fit จะล้นจอทันที จึงต้อง fit อีกครั้งเมื่อเกมพร้อมเสมอ
+game.events.once(Phaser.Core.Events.READY, fitGameContainer);
 window.addEventListener('resize', fitGameContainer);
 window.addEventListener('orientationchange', fitGameContainer);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', fitGameContainer);

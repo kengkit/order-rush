@@ -24,8 +24,8 @@ while ($true) {
 
         $path = "/index.html"
         if ($requestLine -match '^GET\s+(\S+)\s+HTTP') {
-            $p = $matches[1]
-            if ($p -eq "/") { $path = "/index.html" } else { $path = $p }
+            $p = $matches[1].Split('?')[0] # ตัด query string ทิ้ง (เช่น /?dpr=2) ไม่งั้นหาไฟล์ไม่เจอเป็น 404
+            if ($p -eq "/" -or $p -eq "") { $path = "/index.html" } else { $path = $p }
         }
 
         $filePath = Join-Path $root ($path.TrimStart("/") -replace '/', '\')
